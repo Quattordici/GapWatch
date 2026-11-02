@@ -30,8 +30,9 @@ public sealed class ConsoleReportRenderer : IReportRenderer
 
         if (result.Findings.Count == 0)
         {
-            text.Append("\nNo differences that affect consumers were found.\n");
-            return text.ToString();
+            text.Append(result.Suppressed.Count == 0
+                ? "\nNo differences that affect consumers were found.\n"
+                : "\nNo unsuppressed differences that affect consumers were found.\n");
         }
 
         foreach (var severity in new[] { Severity.Breaking, Severity.Warning, Severity.Info })
@@ -52,6 +53,31 @@ public sealed class ConsoleReportRenderer : IReportRenderer
                 }
 
                 text.Append("          ").Append(finding.Message).Append('\n');
+            }
+        }
+
+        if (result.Suppressed.Count > 0)
+        {
+            text.Append("\nSUPPRESSED (").Append(result.Suppressed.Count).Append(")\n");
+            foreach (var (finding, suppression) in result.Suppressed)
+            {
+                text.Append("  [").Append(finding.Rule.Id).Append("] ").Append(finding.Operation).Append('\n');
+                if (finding.Location != "operation")
+                {
+                    text.Append("          ").Append(finding.Location).Append('\n');
+                }
+
+                text.Append("          ").Append(finding.Message).Append('\n');
+                text.Append("          Justification: ").Append(suppression.Justification).Append('\n');
+            }
+        }
+
+        if (result.UnusedSuppressions.Count > 0)
+        {
+            text.Append("\nUNUSED SUPPRESSIONS (").Append(result.UnusedSuppressions.Count).Append(") - they match nothing and can be removed\n");
+            foreach (var suppression in result.UnusedSuppressions)
+            {
+                text.Append("  ").Append(suppression.Describe()).Append('\n');
             }
         }
 
@@ -81,7 +107,9 @@ public sealed class MarkdownReportRenderer : IReportRenderer
                 ? $"❌ **Breaking changes detected** ({Summary.Describe(result)})"
                 : warnings > 0
                     ? $"⚠️ **No breaking changes, but review the warnings** ({Summary.Describe(result)})"
-                    : "✅ **No breaking changes**")
+                    : result.Suppressed.Count > 0
+                        ? $"✅ **No breaking changes** ({Summary.Describe(result)})"
+                        : "✅ **No breaking changes**")
             .Append("\n\n");
 
         text.Append('`').Append(Code(context.BaseLabel)).Append("` → `").Append(Code(context.HeadLabel)).Append("`\n");
@@ -89,8 +117,48 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         AppendGroup(text, result, Severity.Breaking, "❌", collapsed: false);
         AppendGroup(text, result, Severity.Warning, "⚠️", collapsed: false);
         AppendGroup(text, result, Severity.Info, "ℹ️", collapsed: true);
+        AppendSuppressed(text, result);
+        AppendUnused(text, result);
 
         return text.ToString();
+    }
+
+    private static void AppendSuppressed(StringBuilder text, ComparisonResult result)
+    {
+        if (result.Suppressed.Count == 0)
+        {
+            return;
+        }
+
+        text.Append("\n<details>\n<summary>🔕 Suppressed (").Append(result.Suppressed.Count).Append(")</summary>\n\n");
+        text.Append("| Rule | Severity | Operation | Location | Details | Justification |\n|---|---|---|---|---|---|\n");
+        foreach (var (finding, suppression) in result.Suppressed)
+        {
+            text.Append("| ").Append(finding.Rule.Id)
+                .Append(" | ").Append(finding.Severity)
+                .Append(" | `").Append(Code(finding.Operation))
+                .Append("` | `").Append(Code(finding.Location))
+                .Append("` | ").Append(Cell(finding.Message))
+                .Append(" | ").Append(Cell(suppression.Justification))
+                .Append(" |\n");
+        }
+
+        text.Append("\n</details>\n");
+    }
+
+    private static void AppendUnused(StringBuilder text, ComparisonResult result)
+    {
+        if (result.UnusedSuppressions.Count == 0)
+        {
+            return;
+        }
+
+        text.Append("\n> [!NOTE]\n> ").Append(result.UnusedSuppressions.Count)
+            .Append(" suppression(s) matched nothing and can be removed from the configuration:\n");
+        foreach (var suppression in result.UnusedSuppressions)
+        {
+            text.Append("> - `").Append(Code(suppression.Describe())).Append("`\n");
+        }
     }
 
     private static void AppendGroup(StringBuilder text, ComparisonResult result, Severity severity, string icon, bool collapsed)
@@ -183,8 +251,14 @@ internal static class Summary
         _ => "Info",
     };
 
-    public static string Describe(ComparisonResult result) =>
-        string.Create(
+    public static string Describe(ComparisonResult result)
+    {
+        var summary = string.Create(
             CultureInfo.InvariantCulture,
             $"{result.Count(Severity.Breaking)} breaking, {result.Count(Severity.Warning)} warning(s), {result.Count(Severity.Info)} info");
+
+        return result.Suppressed.Count == 0
+            ? summary
+            : string.Create(CultureInfo.InvariantCulture, $"{summary}, {result.Suppressed.Count} suppressed");
+    }
 }

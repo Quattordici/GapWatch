@@ -1,5 +1,6 @@
 using GapWatch.Core.Comparison;
 using GapWatch.Core.Findings;
+using GapWatch.Core.Policy;
 using GapWatch.OpenApi;
 using GapWatch.Reporting;
 using Shouldly;
@@ -74,6 +75,61 @@ public sealed class RendererTests
 
         report.ShouldContain("<details>");
         report.ShouldContain("</details>");
+    }
+
+    private static ComparisonResult WithPolicy()
+    {
+        var policy = new CompatibilityPolicy(
+            new Dictionary<string, Severity>(StringComparer.Ordinal),
+            new HashSet<string>(StringComparer.Ordinal),
+            [
+                new Suppression("GW001", "GET /owners", null, "Owners moved to the CRM | agreed in <ADR-7>."),
+                new Suppression("GW030", "GET /stale", null, "Left over."),
+            ]);
+
+        return policy.Apply(PetstoreDiff());
+    }
+
+    [Test]
+    public void Console_report_lists_suppressed_findings_with_justification_and_unused_suppressions()
+    {
+        var report = new ConsoleReportRenderer().Render(WithPolicy(), Context);
+
+        report.ShouldContain("19 breaking, 7 warning(s), 3 info, 1 suppressed");
+        report.ShouldContain("SUPPRESSED (1)\n  [GW001] GET /owners\n");
+        report.ShouldContain("Justification: Owners moved to the CRM | agreed in <ADR-7>.");
+        report.ShouldContain("UNUSED SUPPRESSIONS (1)");
+        report.ShouldContain("  GW030 GET /stale\n");
+    }
+
+    [Test]
+    public void Console_report_with_everything_suppressed_says_so()
+    {
+        var finding = new Finding(RuleCatalog.OperationRemoved, "GET /x", "operation", "Operation 'GET /x' was removed.");
+        var result = new ComparisonResult([], [new SuppressedFinding(finding, new Suppression("GW001", null, null, "ok"))]);
+
+        new ConsoleReportRenderer().Render(result, Context).ShouldContain("No unsuppressed differences");
+    }
+
+    [Test]
+    public void Markdown_report_collapses_suppressed_findings_and_escapes_the_justification()
+    {
+        var report = new MarkdownReportRenderer().Render(WithPolicy(), Context);
+
+        report.ShouldContain("<summary>🔕 Suppressed (1)</summary>");
+        report.ShouldContain("| GW001 | Breaking | `GET /owners` | `operation` |");
+        report.ShouldContain("Owners moved to the CRM \\| agreed in &lt;ADR-7&gt;.");
+        report.ShouldContain("> 1 suppression(s) matched nothing");
+        report.ShouldContain("> - `GW030 GET /stale`");
+    }
+
+    [Test]
+    public void Markdown_report_is_green_when_every_breaking_change_is_suppressed()
+    {
+        var finding = new Finding(RuleCatalog.OperationRemoved, "GET /x", "operation", "Operation 'GET /x' was removed.");
+        var result = new ComparisonResult([], [new SuppressedFinding(finding, new Suppression("GW001", null, null, "ok"))]);
+
+        new MarkdownReportRenderer().Render(result, Context).ShouldContain("✅ **No breaking changes** (0 breaking, 0 warning(s), 0 info, 1 suppressed)");
     }
 
     [Test]
