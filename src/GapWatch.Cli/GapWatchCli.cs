@@ -3,6 +3,7 @@ using System.Text;
 using GapWatch.Core;
 using GapWatch.Core.Comparison;
 using GapWatch.Core.Findings;
+using GapWatch.Core.Policy;
 using GapWatch.OpenApi;
 using GapWatch.Reporting;
 
@@ -37,6 +38,7 @@ public static class GapWatchCli
           --output <file>                 Write the report to a file instead of stdout.
           --fail-on <breaking|warning|none>
                                           Lowest severity that makes the exit code 1 (default: breaking).
+          --config <file>                 gapwatch.json with severity overrides and suppressions.
 
         Inputs are OpenAPI 3.x documents in JSON. <base> is what consumers rely on today,
         <head> is the proposed change.
@@ -75,6 +77,10 @@ public static class GapWatchCli
         {
             return Fail(error, ex.Message);
         }
+        catch (ConfigurationException ex)
+        {
+            return Fail(error, ex.Message);
+        }
         catch (UsageException ex)
         {
             return Fail(error, ex.Message);
@@ -91,7 +97,7 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
@@ -100,12 +106,16 @@ public static class GapWatchCli
         var format = options.Format();
         var failOn = options.FailOn();
 
+        var policy = options.Values.TryGetValue("--config", out var configPath)
+            ? ConfigFile.Load(configPath)
+            : CompatibilityPolicy.Default;
+
         var baselinePath = options.Positional[0];
         var headPath = options.Positional[1];
 
         var baseline = ContractLoader.Load(baselinePath);
         var head = ContractLoader.Load(headPath);
-        var result = new ContractComparer().Compare(baseline, head);
+        var result = policy.Apply(new ContractComparer().Compare(baseline, head));
 
         IReportRenderer renderer = format == "markdown" ? new MarkdownReportRenderer() : new ConsoleReportRenderer();
         var report = renderer.Render(result, new ReportContext(baselinePath, headPath));
@@ -114,7 +124,7 @@ public static class GapWatchCli
         {
             File.WriteAllText(outputPath, report, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             output.WriteLine(
-                $"Report written to {outputPath} ({result.Count(Severity.Breaking)} breaking, {result.Count(Severity.Warning)} warning(s), {result.Count(Severity.Info)} info).");
+                $"Report written to {outputPath} ({result.Count(Severity.Breaking)} breaking, {result.Count(Severity.Warning)} warning(s), {result.Count(Severity.Info)} info, {result.Suppressed.Count} suppressed).");
         }
         else
         {

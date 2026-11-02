@@ -76,6 +76,51 @@ public sealed class CliTests
     }
 
     [Test]
+    public void Config_can_raise_a_rule_to_breaking()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Parameter("q", "query", """{ "type": "string" }"""));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/x"));
+        var config = dir.Write("gapwatch.json", """{ "rules": { "GW012": "breaking" } }""");
+
+        Run("compare", before, after, "--config", config).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+    }
+
+    [Test]
+    public void Config_suppressions_take_findings_out_of_the_exit_code_and_show_the_justification()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Operation("get", "/x"));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/y"));
+        var config = dir.Write(
+            "gapwatch.json",
+            """{ "suppressions": [ { "rule": "GW001", "operation": "GET /x", "justification": "Retired, no traffic for 90 days." } ] }""");
+
+        Run("compare", before, after).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+
+        var (code, output, _) = Run("compare", before, after, "--config", config);
+
+        code.ShouldBe(ExitCodes.Success);
+        output.ShouldContain("0 breaking, 0 warning(s), 1 info, 1 suppressed");
+        output.ShouldContain("SUPPRESSED (1)");
+        output.ShouldContain("Justification: Retired, no traffic for 90 days.");
+    }
+
+    [Test]
+    public void Invalid_or_missing_config_is_an_error()
+    {
+        using var dir = new TempDir();
+        var unjustified = dir.Write("gapwatch.json", """{ "suppressions": [ { "rule": "GW001" } ] }""");
+
+        var (code, output, error) = Run("compare", V1, V2, "--config", unjustified);
+
+        code.ShouldBe(ExitCodes.Error);
+        output.ShouldBeEmpty();
+        error.ShouldContain("has no justification");
+        Run("compare", V1, V2, "--config", "/definitely/not/gapwatch.json").Code.ShouldBe(ExitCodes.Error);
+    }
+
+    [Test]
     public void No_arguments_is_a_usage_error()
     {
         var (code, _, error) = Run();
