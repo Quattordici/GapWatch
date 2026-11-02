@@ -95,12 +95,9 @@ tests/
 
 Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That is what lets a Roslyn-based reader (DTOs and endpoints from source) be added later without touching a single rule.
 
-## First run
+## Running the tests
 
-This scaffold was generated in an environment without NuGet access, so two things need doing once on a normal machine:
-
-1. **Restore and run the tests.** `dotnet test` should work with the Microsoft Testing Platform runner configured in `global.json`. If `xunit.v3` needs a runner package variant for your SDK, add it to `Directory.Packages.props`.
-2. **Pin package versions.** `Directory.Packages.props` uses floating versions (`*`) for the two test packages so the first restore succeeds. Replace them with the resolved versions afterwards.
+`dotnet test` runs on the Microsoft Testing Platform (configured in `global.json`, requires the .NET 10 SDK). `xunit.v3` 4.x brings the MTP v2 runner (`xunit.v3.mtp-v2`) transitively, so no extra runner package is needed. Package versions are pinned in `Directory.Packages.props`.
 
 To regenerate the golden reports after an intentional output change, run the tests with `GAPWATCH_UPDATE_GOLDEN=1` and review the diff.
 
