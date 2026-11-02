@@ -31,13 +31,15 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown] [--output <file>] [--fail-on breaking|warning|none] [--config <file>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
 
 - `<base>` is the contract consumers rely on today; `<head>` is the proposed change.
 - `--format markdown` produces a report for pull request comments. It starts with a hidden marker (`<!-- gapwatch-report -->`) so a pipeline can find and update one comment instead of posting a new one each run.
+- `--format sarif` writes a SARIF 2.1.0 log for code-scanning views (GitHub code scanning, the Azure DevOps SARIF viewer, IDE SARIF viewers). See [Output formats](#output-formats).
+- `--format junit` writes JUnit XML for CI test tabs (Azure DevOps, Jenkins, GitLab).
 - `--output` writes the report to a file and prints a one-line summary.
 - `--config` reads a `gapwatch.json` with severity overrides and suppressions (see [Configuration](#configuration)).
 
@@ -63,6 +65,17 @@ POST /pets  request body (application/json): $.ownerId
 ```
 
 A complete before/after sample lives in `tests/GapWatch.Tests/Fixtures`, with the full reports in `tests/GapWatch.Tests/Golden`.
+
+## Output formats
+
+| Format | For | Notes |
+|---|---|---|
+| `console` | Build logs | Grouped by severity. |
+| `markdown` | Pull request comments | Starts with `<!-- gapwatch-report -->` so a pipeline can update one comment. |
+| `sarif` | Code-scanning dashboards | SARIF 2.1.0, validated against the OASIS schema in development. Levels: Breaking `error`, Warning `warning`, Info `note`. Suppressed findings are kept with `suppressions[].kind = "external"` and their justification. `partialFingerprints` hash rule, operation and location, so a finding keeps its identity when its wording changes. |
+| `junit` | CI test tabs | One test case per finding, grouped by operation. Findings at or above `--fail-on` are failures, so the XML agrees with the exit code; suppressed findings are skipped with their justification. |
+
+SARIF results point at the head document at line 1, plus a logical location (`GET /pets > response 200 application/json: $[].id`). Readers do not record source positions yet; real line numbers arrive with source mapping in v0.3.
 
 ## Configuration
 
@@ -108,7 +121,7 @@ Every suppression needs a justification. Suppressed findings leave the exit code
 src/
   GapWatch.Core        Contract model, rule catalog, comparison engine, policy (overrides, suppressions). No I/O, no dependencies.
   GapWatch.OpenApi     OpenAPI 3.x JSON reader (System.Text.Json) behind IContractReader.
-  GapWatch.Reporting   Console and Markdown renderers, rule list.
+  GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
   GapWatch.Cli         The `gapwatch` dotnet tool and the gapwatch.json reader. GapWatchCli.Run is console-free and unit tested.
 tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
@@ -130,13 +143,14 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Shared schemas repeat.** A change to a schema used by several operations is reported once per operation. Grouping by component is planned.
+- **No source positions.** SARIF results point at line 1 of the head document; mapping to real lines comes with v0.3.
 
 ## Roadmap
 
 | Version | Scope |
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
-| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output, grouping of repeated findings, YAML via `Microsoft.OpenApi` |
+| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings, YAML via `Microsoft.OpenApi` |
 | v0.3 | Roslyn analysis of contract types and endpoints, findings mapped to source locations |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |

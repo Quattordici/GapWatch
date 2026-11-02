@@ -4,10 +4,19 @@ using GapWatch.Core.Findings;
 
 namespace GapWatch.Reporting;
 
-/// <summary>Labels shown in a report header.</summary>
+/// <summary>Labels shown in a report header, plus settings that formats need to describe the run.</summary>
 /// <param name="BaseLabel">Where the baseline came from (usually a file name).</param>
 /// <param name="HeadLabel">Where the proposed contract came from.</param>
-public sealed record ReportContext(string BaseLabel, string HeadLabel);
+public sealed record ReportContext(string BaseLabel, string HeadLabel)
+{
+    /// <summary>GapWatch version for formats that record the producing tool (SARIF). <c>null</c> omits it.</summary>
+    public string? ToolVersion { get; init; }
+
+    /// <summary>
+    /// The <c>--fail-on</c> threshold, for formats that mark findings as failed (JUnit). <c>null</c> means nothing fails.
+    /// </summary>
+    public Severity? FailOn { get; init; } = Severity.Breaking;
+}
 
 /// <summary>Turns a <see cref="ComparisonResult"/> into text.</summary>
 public interface IReportRenderer

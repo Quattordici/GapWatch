@@ -121,6 +121,26 @@ public sealed class CliTests
     }
 
     [Test]
+    public void Sarif_and_junit_formats_are_selectable_and_keep_the_exit_code()
+    {
+        var sarif = Run("compare", V1, V2, "--format", "sarif");
+        var junit = Run("compare", V1, V2, "--format", "junit", "--fail-on", "none");
+
+        sarif.Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        sarif.Out.ShouldContain("\"version\": \"2.1.0\"");
+        sarif.Out.ShouldContain("\"semanticVersion\"");
+        junit.Code.ShouldBe(ExitCodes.Success);
+        junit.Out.ShouldContain("<testsuites name=\"GapWatch\"");
+        junit.Out.ShouldContain("failures=\"0\"");
+    }
+
+    [Test]
+    public void Rules_does_not_accept_report_only_formats()
+    {
+        Run("rules", "--format", "sarif").Code.ShouldBe(ExitCodes.Error);
+    }
+
+    [Test]
     public void No_arguments_is_a_usage_error()
     {
         var (code, _, error) = Run();
