@@ -1,0 +1,23 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AssemblyName>gapwatch</AssemblyName>
+    <RootNamespace>GapWatch.Cli</RootNamespace>
+
+    <!-- dotnet tool packaging. PackageId is a placeholder until the NuGet id is confirmed free. -->
+    <PackAsTool>true</PackAsTool>
+    <ToolCommandName>gapwatch</ToolCommandName>
+    <PackageId>GapWatch</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Detects breaking changes between two versions of an HTTP API contract (OpenAPI), direction-aware and explainable.</Description>
+    <PackageTags>openapi;api;breaking-changes;compatibility;dotnet-tool</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\GapWatch.Core\GapWatch.Core.csproj" />
+    <ProjectReference Include="..\GapWatch.OpenApi\GapWatch.OpenApi.csproj" />
+    <ProjectReference Include="..\GapWatch.Reporting\GapWatch.Reporting.csproj" />
+  </ItemGroup>
+
+</Project>
