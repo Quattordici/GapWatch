@@ -15,7 +15,7 @@ public sealed class RendererTests
             ContractLoader.Load(TestSpec.FixturePath("petstore-v1.json")),
             ContractLoader.Load(TestSpec.FixturePath("petstore-v2.json")));
 
-    [Fact]
+    [Test]
     public void Console_report_without_findings_says_so()
     {
         var report = new ConsoleReportRenderer().Render(new ComparisonResult([]), Context);
@@ -24,7 +24,7 @@ public sealed class RendererTests
         report.ShouldContain("No differences that affect consumers");
     }
 
-    [Fact]
+    [Test]
     public void Console_report_orders_groups_from_most_to_least_severe()
     {
         var report = new ConsoleReportRenderer().Render(PetstoreDiff(), Context);
@@ -36,7 +36,7 @@ public sealed class RendererTests
         (breaking >= 0 && breaking < warnings && warnings < info).ShouldBeTrue();
     }
 
-    [Fact]
+    [Test]
     public void Markdown_report_without_findings_is_green_and_carries_the_marker()
     {
         var report = new MarkdownReportRenderer().Render(new ComparisonResult([]), Context);
@@ -45,7 +45,7 @@ public sealed class RendererTests
         report.ShouldContain("✅ **No breaking changes**");
     }
 
-    [Fact]
+    [Test]
     public void Markdown_report_escapes_table_syntax_and_html_in_messages()
     {
         var finding = new Finding(RuleCatalog.TypeChanged, "GET /x", "loc|x", "a|b <script>");
@@ -57,7 +57,7 @@ public sealed class RendererTests
         report.ShouldNotContain("<script>");
     }
 
-    [Fact]
+    [Test]
     public void Markdown_report_for_warnings_only_is_flagged_for_review()
     {
         var finding = new Finding(RuleCatalog.ParameterRemoved, "GET /x", "parameter 'q' (query)", "Parameter 'q' (query) was removed.");
@@ -67,7 +67,7 @@ public sealed class RendererTests
         report.ShouldContain("⚠️ **No breaking changes, but review the warnings**");
     }
 
-    [Fact]
+    [Test]
     public void Markdown_report_collapses_informational_findings()
     {
         var report = new MarkdownReportRenderer().Render(PetstoreDiff(), Context);
@@ -76,15 +76,15 @@ public sealed class RendererTests
         report.ShouldContain("</details>");
     }
 
-    [Fact]
+    [Test]
     public void Petstore_markdown_report_matches_the_golden_file() =>
         Golden.Verify("petstore.md", new MarkdownReportRenderer().Render(PetstoreDiff(), Context));
 
-    [Fact]
+    [Test]
     public void Petstore_console_report_matches_the_golden_file() =>
         Golden.Verify("petstore.txt", new ConsoleReportRenderer().Render(PetstoreDiff(), Context));
 
-    [Fact]
+    [Test]
     public void Rule_list_mentions_every_rule_in_both_formats()
     {
         var console = RuleListRenderer.RenderConsole();
@@ -97,7 +97,7 @@ public sealed class RendererTests
         }
     }
 
-    [Fact]
+    [Test]
     public void Reports_are_deterministic()
     {
         var first = new MarkdownReportRenderer().Render(PetstoreDiff(), Context);

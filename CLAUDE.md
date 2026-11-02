@@ -5,7 +5,7 @@ GapWatch detects breaking changes between two versions of an HTTP API contract. 
 ## Stack and conventions
 
 - C#, .NET 10, nullable enabled, warnings as errors, central package management (`Directory.Packages.props`).
-- Tests: xunit v3 and Shouldly. Keep assertions simple (`ShouldBe`, `ShouldContain`, `ShouldBeEmpty`, `ShouldHaveSingleItem`, `Should.Throw`); compare collections as joined strings.
+- Tests: TUnit (`TUnit.Core` + `TUnit.Engine`, on Microsoft Testing Platform), `TUnit.Mocks` for test doubles, Shouldly for assertions. Do not add the `TUnit` meta-package or `TUnit.Assertions`; Shouldly is the only assertion library. TUnit runs tests in parallel by default, so tests must not share mutable state (use `[NotInParallel]` only when unavoidable). Keep assertions simple (`ShouldBe`, `ShouldContain`, `ShouldBeEmpty`, `ShouldHaveSingleItem`, `Should.Throw`); compare collections as joined strings.
 - Prefer small, pure, well-tested core libraries. `GapWatch.Core` has no I/O and no package dependencies; keep it that way.
 
 ## Architecture rules

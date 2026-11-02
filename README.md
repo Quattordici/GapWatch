@@ -90,14 +90,14 @@ src/
   GapWatch.Reporting   Console and Markdown renderers, rule list.
   GapWatch.Cli         The `gapwatch` dotnet tool. GapWatchCli.Run is console-free and unit tested.
 tests/
-  GapWatch.Tests       xunit v3 + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
+  GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```
 
 Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That is what lets a Roslyn-based reader (DTOs and endpoints from source) be added later without touching a single rule.
 
 ## Running the tests
 
-`dotnet test` runs on the Microsoft Testing Platform (configured in `global.json`, requires the .NET 10 SDK). `xunit.v3` 4.x brings the MTP v2 runner (`xunit.v3.mtp-v2`) transitively, so no extra runner package is needed. Package versions are pinned in `Directory.Packages.props`.
+`dotnet test` runs on the Microsoft Testing Platform (configured in `global.json`, requires the .NET 10 SDK). The tests use TUnit (`TUnit.Core` + `TUnit.Engine`, without `TUnit.Assertions`), `TUnit.Mocks` for test doubles and Shouldly for assertions. Package versions are pinned in `Directory.Packages.props`.
 
 To regenerate the golden reports after an intentional output change, run the tests with `GAPWATCH_UPDATE_GOLDEN=1` and review the diff.
 

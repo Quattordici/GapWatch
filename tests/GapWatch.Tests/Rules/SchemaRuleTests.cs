@@ -12,7 +12,7 @@ public sealed class SchemaRuleTests
 
     // --- Responses: consumers read the value ---------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Response_required_property_removed_is_breaking_GW025()
     {
         var before = TestSpec.Response(Obj("\"name\": " + Str, "\"name\""));
@@ -21,7 +21,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW025");
     }
 
-    [Fact]
+    [Test]
     public void Response_optional_property_removed_warns_GW026()
     {
         var before = TestSpec.Response(Obj("\"name\": " + Str));
@@ -30,7 +30,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW026");
     }
 
-    [Fact]
+    [Test]
     public void Response_property_added_is_safe()
     {
         var before = TestSpec.Response(Obj("\"name\": " + Str));
@@ -39,7 +39,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Response_type_change_is_breaking_GW020()
     {
         var before = TestSpec.Response(Obj("\"id\": { \"type\": \"integer\" }"));
@@ -48,7 +48,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW020");
     }
 
-    [Fact]
+    [Test]
     public void Response_integer_widened_to_number_is_breaking_GW020()
     {
         var before = TestSpec.Response("""{ "type": "integer" }""");
@@ -57,7 +57,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW020");
     }
 
-    [Fact]
+    [Test]
     public void Response_number_narrowed_to_integer_is_safe()
     {
         var before = TestSpec.Response("""{ "type": "number" }""");
@@ -66,7 +66,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Response_required_property_becoming_optional_is_breaking_GW029()
     {
         var before = TestSpec.Response(Obj("\"name\": " + Str, "\"name\""));
@@ -75,7 +75,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW029");
     }
 
-    [Fact]
+    [Test]
     public void Response_value_becoming_nullable_is_breaking_GW022()
     {
         var before = TestSpec.Response("""{ "type": "string" }""");
@@ -84,7 +84,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW022");
     }
 
-    [Fact]
+    [Test]
     public void Response_value_no_longer_nullable_is_safe()
     {
         var before = TestSpec.Response("""{ "type": "string", "nullable": true }""");
@@ -93,7 +93,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Response_enum_value_added_warns_GW024()
     {
         var before = TestSpec.Response("""{ "type": "string", "enum": [ "a", "b" ] }""");
@@ -105,7 +105,7 @@ public sealed class SchemaRuleTests
         finding.Message.ShouldContain("'c'");
     }
 
-    [Fact]
+    [Test]
     public void Response_enum_value_removed_is_safe()
     {
         var before = TestSpec.Response("""{ "type": "string", "enum": [ "a", "b" ] }""");
@@ -114,7 +114,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Response_enum_constraint_dropped_warns_GW024()
     {
         var before = TestSpec.Response("""{ "type": "string", "enum": [ "a" ] }""");
@@ -123,7 +123,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW024");
     }
 
-    [Fact]
+    [Test]
     public void Response_int32_widened_to_int64_is_breaking_GW021()
     {
         var before = TestSpec.Response("""{ "type": "integer", "format": "int32" }""");
@@ -132,7 +132,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW021");
     }
 
-    [Fact]
+    [Test]
     public void Response_int64_narrowed_to_int32_is_safe()
     {
         var before = TestSpec.Response("""{ "type": "integer", "format": "int64" }""");
@@ -141,7 +141,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Response_variant_added_warns_GW031()
     {
         var before = TestSpec.Response("""{ "oneOf": [ { "type": "string" }, { "type": "integer" } ] }""");
@@ -150,7 +150,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW031");
     }
 
-    [Fact]
+    [Test]
     public void Response_variant_removed_is_safe()
     {
         var before = TestSpec.Response("""{ "oneOf": [ { "type": "string" }, { "type": "integer" }, { "type": "boolean" } ] }""");
@@ -159,7 +159,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Nested_array_item_changes_carry_a_precise_location()
     {
         var before = TestSpec.Response("{ \"type\": \"array\", \"items\": " + Obj("\"name\": " + Str, "\"name\"") + " }");
@@ -171,7 +171,7 @@ public sealed class SchemaRuleTests
         finding.Location.ShouldBe("response 200 application/json: $[].name");
     }
 
-    [Fact]
+    [Test]
     public void Removing_a_write_only_property_from_a_response_is_not_a_change()
     {
         var before = TestSpec.Response(Obj("\"password\": { \"type\": \"string\", \"writeOnly\": true }", "\"password\""));
@@ -182,7 +182,7 @@ public sealed class SchemaRuleTests
 
     // --- Requests: consumers send the value ----------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Request_new_required_property_is_breaking_GW027()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str, "\"name\""));
@@ -191,7 +191,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW027");
     }
 
-    [Fact]
+    [Test]
     public void Request_new_optional_property_is_safe()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str, "\"name\""));
@@ -200,7 +200,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Request_property_becoming_required_is_breaking_GW028()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str));
@@ -209,7 +209,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW028");
     }
 
-    [Fact]
+    [Test]
     public void Request_required_property_becoming_optional_is_safe()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str, "\"name\""));
@@ -218,7 +218,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Request_property_removed_warns_GW026()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str + ", \"tag\": " + Str));
@@ -227,7 +227,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW026");
     }
 
-    [Fact]
+    [Test]
     public void Request_enum_value_removed_is_breaking_GW023()
     {
         var before = TestSpec.Request("""{ "type": "string", "enum": [ "a", "b" ] }""");
@@ -236,7 +236,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW023");
     }
 
-    [Fact]
+    [Test]
     public void Request_enum_value_added_is_safe()
     {
         var before = TestSpec.Request("""{ "type": "string", "enum": [ "a" ] }""");
@@ -245,7 +245,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Request_enum_constraint_introduced_is_breaking_GW023()
     {
         var before = TestSpec.Request("""{ "type": "string" }""");
@@ -254,7 +254,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW023");
     }
 
-    [Fact]
+    [Test]
     public void Request_value_no_longer_accepting_null_is_breaking_GW022()
     {
         var before = TestSpec.Request("""{ "type": "string", "nullable": true }""");
@@ -263,7 +263,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW022");
     }
 
-    [Fact]
+    [Test]
     public void Request_value_becoming_nullable_is_safe()
     {
         var before = TestSpec.Request("""{ "type": "string" }""");
@@ -272,7 +272,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Request_integer_widened_to_number_is_safe()
     {
         var before = TestSpec.Request("""{ "type": "integer" }""");
@@ -281,7 +281,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Request_number_narrowed_to_integer_is_breaking_GW020()
     {
         var before = TestSpec.Request("""{ "type": "number" }""");
@@ -290,7 +290,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW020");
     }
 
-    [Fact]
+    [Test]
     public void Request_int32_widened_to_int64_is_safe_but_the_reverse_is_breaking()
     {
         var int32 = TestSpec.Request("""{ "type": "integer", "format": "int32" }""");
@@ -300,7 +300,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(int64, int32).RuleIds().ShouldBe("GW021");
     }
 
-    [Fact]
+    [Test]
     public void Request_format_constraint_introduced_is_breaking_GW021()
     {
         var before = TestSpec.Request("""{ "type": "string" }""");
@@ -309,7 +309,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW021");
     }
 
-    [Fact]
+    [Test]
     public void Request_variant_removed_is_breaking_GW030_and_added_is_safe()
     {
         var two = TestSpec.Request("""{ "oneOf": [ { "type": "string" }, { "type": "integer" } ] }""");
@@ -319,7 +319,7 @@ public sealed class SchemaRuleTests
         TestSpec.Diff(two, three).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Adding_a_required_read_only_property_to_a_request_schema_is_not_a_change()
     {
         var before = TestSpec.Request(Obj("\"name\": " + Str, "\"name\""));
@@ -331,7 +331,7 @@ public sealed class SchemaRuleTests
 
     // --- Structure -----------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Recursive_schemas_terminate_and_still_detect_changes()
     {
         const string Components = """
@@ -354,7 +354,7 @@ public sealed class SchemaRuleTests
         finding.Location.ShouldBe("response 200 application/json: $.value");
     }
 
-    [Fact]
+    [Test]
     public void Type_changes_stop_deeper_comparison_to_avoid_noise()
     {
         var before = TestSpec.Response(Obj("\"a\": " + Str, "\"a\""));
