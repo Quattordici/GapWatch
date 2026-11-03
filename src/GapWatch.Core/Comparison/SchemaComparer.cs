@@ -3,7 +3,13 @@ using GapWatch.Core.Model;
 
 namespace GapWatch.Core.Comparison;
 
-/// <summary>Callback used by the schema comparer to emit a finding at a schema path such as <c>$.items[].name</c>.</summary>
+/// <summary>
+/// Receives findings from the schema comparer: the schema path such as <c>$.items[].name</c>, and the component schema
+/// the change originates in (the innermost <c>$ref</c> that both versions share), if any.
+/// </summary>
+internal delegate void SchemaFindingSink(RuleDescriptor rule, string schemaPath, string message, SchemaOrigin? origin);
+
+/// <summary>Emits a finding at a schema path; the origin is filled in by the enclosing comparison.</summary>
 internal delegate void ReportFinding(RuleDescriptor rule, string schemaPath, string message);
 
 /// <summary>
@@ -27,13 +33,44 @@ internal static class SchemaComparer
         SchemaContract head,
         Direction direction,
         string path,
-        ReportFinding report)
+        SchemaFindingSink sink) =>
+        Compare(baseline, head, direction, path, sink, scope: null);
+
+    /// <summary>The component schema currently being compared and where its root sits in the full path.</summary>
+    private readonly record struct ComponentScope(string Name, int PathStart);
+
+    private static void Compare(
+        SchemaContract baseline,
+        SchemaContract head,
+        Direction direction,
+        string path,
+        SchemaFindingSink sink,
+        ComponentScope? scope)
     {
         // A recursive leaf only names a schema that is expanded (and therefore compared) higher up.
         if (baseline.IsRecursiveReference || head.IsRecursiveReference)
         {
             return;
         }
+
+        // Entering a component schema that both versions reference: changes below originate in that component.
+        // Changes on the referencing node itself (nullable or other keywords next to the $ref) belong to the place that
+        // references it, so they stay with the enclosing component when there is one.
+        var enclosing = scope;
+        if (baseline.ReferenceName is { } name && string.Equals(name, head.ReferenceName, StringComparison.Ordinal))
+        {
+            scope = new ComponentScope(name, path.Length);
+        }
+
+        ReportFinding report = (rule, schemaPath, message) =>
+        {
+            var owner = schemaPath == path && enclosing is not null ? enclosing : scope;
+            sink(
+                rule,
+                schemaPath,
+                message,
+                owner is { } s ? new SchemaOrigin(s.Name, Root + schemaPath[s.PathStart..], direction) : null);
+        };
 
         if (!CompareTypes(baseline, head, direction, path, report))
         {
@@ -43,14 +80,14 @@ internal static class SchemaComparer
         CompareFormat(baseline, head, direction, path, report);
         CompareNullability(baseline, head, direction, path, report);
         CompareEnums(baseline, head, direction, path, report);
-        CompareProperties(baseline, head, direction, path, report);
+        CompareProperties(baseline, head, direction, path, report, sink, scope);
 
         if (baseline.Items is not null && head.Items is not null)
         {
-            Compare(baseline.Items, head.Items, direction, $"{path}[]", report);
+            Compare(baseline.Items, head.Items, direction, $"{path}[]", sink, scope);
         }
 
-        CompareVariants(baseline, head, direction, path, report);
+        CompareVariants(baseline, head, direction, path, report, sink, scope);
     }
 
     private static bool CompareTypes(
@@ -199,7 +236,13 @@ internal static class SchemaComparer
     }
 
     private static void CompareProperties(
-        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+        SchemaContract baseline,
+        SchemaContract head,
+        Direction direction,
+        string path,
+        ReportFinding report,
+        SchemaFindingSink sink,
+        ComponentScope? scope)
     {
         var before = Visible(baseline, direction);
         var after = Visible(head, direction);
@@ -247,7 +290,7 @@ internal static class SchemaComparer
                     $"Response property '{name}' is no longer guaranteed to be present.");
             }
 
-            Compare(was.Schema, now.Schema, direction, propertyPath, report);
+            Compare(was.Schema, now.Schema, direction, propertyPath, sink, scope);
         }
 
         if (direction != Direction.Request)
@@ -268,7 +311,13 @@ internal static class SchemaComparer
     }
 
     private static void CompareVariants(
-        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+        SchemaContract baseline,
+        SchemaContract head,
+        Direction direction,
+        string path,
+        ReportFinding report,
+        SchemaFindingSink sink,
+        ComponentScope? scope)
     {
         if (baseline.Variants.Count == 0 && head.Variants.Count == 0)
         {
@@ -282,7 +331,7 @@ internal static class SchemaComparer
         {
             if (after.TryGetValue(key, out var now))
             {
-                Compare(was, now, direction, $"{path}<{key}>", report);
+                Compare(was, now, direction, $"{path}<{key}>", sink, scope);
             }
             else if (direction == Direction.Request)
             {

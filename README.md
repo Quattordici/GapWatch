@@ -77,6 +77,20 @@ A complete before/after sample lives in `tests/GapWatch.Tests/Fixtures`, with th
 
 SARIF results point at the head document at line 1, plus a logical location (`GET /pets > response 200 application/json: $[].id`). Readers do not record source positions yet; real line numbers arrive with source mapping in v0.3.
 
+### Changes in shared schemas
+
+A change inside a component schema (`#/components/schemas/Pet`) affects every operation that uses it. Console and Markdown reports show it once, at its cause, with the operations it affects:
+
+```
+  [GW029] Pet $.name (response), affects 3 operations
+          Response property 'name' is no longer guaranteed to be present.
+          - GET /pets       response 200 application/json: $[].name
+          - GET /pets/{id}  response 200 application/json: $.name
+          - POST /pets      response 201 application/json: $.name
+```
+
+Request and response uses of the same schema stay separate, because the same change is judged differently in each direction. Counts, `--fail-on`, suppressions, SARIF and JUnit still work per operation (SARIF results carry `component` and `componentPath` properties). A keyword next to a nested `$ref` (for example `nullable` on `owner`) is attributed to the schema that holds the property (`Pet $.owner`), not to the referenced one.
+
 ## Configuration
 
 A `gapwatch.json` passed with `--config` changes how findings are judged without touching the rules:
@@ -142,7 +156,6 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
 - **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
-- **Shared schemas repeat.** A change to a schema used by several operations is reported once per operation. Grouping by component is planned.
 - **No source positions.** SARIF results point at line 1 of the head document; mapping to real lines comes with v0.3.
 
 ## Roadmap
@@ -150,7 +163,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | Version | Scope |
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
-| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings, YAML via `Microsoft.OpenApi` |
+| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML via `Microsoft.OpenApi` |
 | v0.3 | Roslyn analysis of contract types and endpoints, findings mapped to source locations |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |

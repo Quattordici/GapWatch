@@ -53,8 +53,24 @@ public sealed class ConsoleReportRenderer : IReportRenderer
             }
 
             text.Append('\n').Append(Summary.Heading(severity).ToUpperInvariant()).Append(" (").Append(group.Count).Append(")\n");
-            foreach (var finding in group)
+            foreach (var change in FindingGroup.Group(group))
             {
+                var finding = change.First;
+                if (change.IsShared)
+                {
+                    // One change in a shared component schema, seen through every operation that uses it.
+                    text.Append("  [").Append(finding.Rule.Id).Append("] ").Append(finding.Origin!.Display)
+                        .Append(", affects ").Append(change.Members.Count).Append(" operations\n");
+                    text.Append("          ").Append(finding.Message).Append('\n');
+                    var width = change.Members.Max(m => m.Operation.Length);
+                    foreach (var member in change.Members)
+                    {
+                        text.Append("          - ").Append(member.Operation.PadRight(width)).Append("  ").Append(member.Location).Append('\n');
+                    }
+
+                    continue;
+                }
+
                 text.Append("  [").Append(finding.Rule.Id).Append("] ").Append(finding.Operation).Append('\n');
                 if (finding.Location != "operation")
                 {
@@ -191,8 +207,23 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         }
 
         text.Append("| Rule | Operation | Location | Details |\n|---|---|---|---|\n");
-        foreach (var finding in group)
+        foreach (var change in FindingGroup.Group(group))
         {
+            var finding = change.First;
+            if (change.IsShared)
+            {
+                // One row per change: the component path is the cause, the operations are where consumers see it.
+                var origin = finding.Origin!;
+                text.Append("| ").Append(finding.Rule.Id)
+                    .Append(" | ").Append(string.Join("<br>", change.Members.Select(m => $"`{Code(m.Operation)}`")))
+                    .Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
+                    .Append("` (").Append(origin.Direction.ToString().ToLowerInvariant()).Append(", ")
+                    .Append(change.Members.Count).Append(" operations)")
+                    .Append(" | ").Append(Cell(finding.Message))
+                    .Append(" |\n");
+                continue;
+            }
+
             text.Append("| ").Append(finding.Rule.Id)
                 .Append(" | `").Append(Code(finding.Operation))
                 .Append("` | `").Append(Code(finding.Location))
