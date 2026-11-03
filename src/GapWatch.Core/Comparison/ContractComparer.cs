@@ -59,8 +59,8 @@ public sealed class ContractComparer
 
     private static void CompareOperation(OperationContract was, OperationContract now, List<Finding> findings)
     {
-        void Add(RuleDescriptor rule, string location, string message) =>
-            findings.Add(new Finding(rule, now.Display, location, message));
+        void Add(RuleDescriptor rule, string location, string message, SchemaOrigin? origin = null) =>
+            findings.Add(new Finding(rule, now.Display, location, message) { Origin = origin });
 
         if (!was.Deprecated && now.Deprecated)
         {
@@ -85,7 +85,7 @@ public sealed class ContractComparer
     }
 
     private static void CompareParameters(
-        OperationContract was, OperationContract now, Action<RuleDescriptor, string, string> add)
+        OperationContract was, OperationContract now, AddFinding add)
     {
         var before = ParameterIndex(was);
         var after = ParameterIndex(now);
@@ -116,10 +116,11 @@ public sealed class ContractComparer
                 current.Schema,
                 Direction.Request,
                 SchemaComparer.Root,
-                (rule, schemaPath, message) => add(
+                (rule, schemaPath, message, origin) => add(
                     rule,
                     FormatLocation($"parameter '{current.Name}' ({current.Location})", schemaPath),
-                    message));
+                    message,
+                    origin));
         }
 
         foreach (var (key, current) in after)
@@ -164,7 +165,7 @@ public sealed class ContractComparer
     }
 
     private static void CompareRequestBody(
-        RequestBodyContract? was, RequestBodyContract? now, Action<RuleDescriptor, string, string> add)
+        RequestBodyContract? was, RequestBodyContract? now, AddFinding add)
     {
         if (was is null && now is null)
         {
@@ -208,15 +209,16 @@ public sealed class ContractComparer
                 current,
                 Direction.Request,
                 SchemaComparer.Root,
-                (rule, schemaPath, message) => add(
+                (rule, schemaPath, message, origin) => add(
                     rule,
                     FormatLocation($"request body ({mediaType})", schemaPath),
-                    message));
+                    message,
+                    origin));
         }
     }
 
     private static void CompareResponses(
-        OperationContract was, OperationContract now, Action<RuleDescriptor, string, string> add)
+        OperationContract was, OperationContract now, AddFinding add)
     {
         var before = was.Responses.GroupBy(r => r.StatusCode.ToUpperInvariant())
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
@@ -258,16 +260,17 @@ public sealed class ContractComparer
                     currentSchema,
                     Direction.Response,
                     SchemaComparer.Root,
-                    (rule, schemaPath, message) => add(
+                    (rule, schemaPath, message, origin) => add(
                         rule,
                         FormatLocation($"response {code} {mediaType}", schemaPath),
-                        message));
+                        message,
+                        origin));
             }
         }
     }
 
     private static void CompareSecurity(
-        OperationContract was, OperationContract now, Action<RuleDescriptor, string, string> add)
+        OperationContract was, OperationContract now, AddFinding add)
     {
         const string None = "none";
 
@@ -311,6 +314,8 @@ public sealed class ContractComparer
     }
 
     private static bool IsSuccess(string statusCode) => statusCode.Length > 0 && statusCode[0] == '2';
+
+    private delegate void AddFinding(RuleDescriptor rule, string location, string message, SchemaOrigin? origin = null);
 
     private static string FormatLocation(string prefix, string schemaPath) =>
         schemaPath == SchemaComparer.Root ? prefix : $"{prefix}: {schemaPath}";

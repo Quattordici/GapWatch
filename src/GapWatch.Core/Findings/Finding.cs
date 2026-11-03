@@ -41,6 +41,22 @@ public sealed record Finding(RuleDescriptor Rule, string Operation, string Locat
     /// Effective severity: the rule's default unless a <see cref="Policy.CompatibilityPolicy"/> overrode it.
     /// </summary>
     public Severity Severity { get; init; } = Rule.DefaultSeverity;
+
+    /// <summary>
+    /// The component schema the change originates in, when it is inside a <c>$ref</c>'d schema that both versions
+    /// share. Findings with the same rule, origin and message describe one change seen through several operations.
+    /// </summary>
+    public SchemaOrigin? Origin { get; init; }
+}
+
+/// <summary>Where inside a shared component schema a change was found.</summary>
+/// <param name="Component">Component schema name, e.g. <c>Pet</c> (from <c>#/components/schemas/Pet</c>).</param>
+/// <param name="Path">Path inside that component, e.g. <c>$.name</c>; <c>$</c> is the component itself.</param>
+/// <param name="Direction">Whether the component was compared as request or response content at this place.</param>
+public sealed record SchemaOrigin(string Component, string Path, Direction Direction)
+{
+    /// <summary>Human-readable form, e.g. <c>Pet $.name (response)</c>.</summary>
+    public string Display => $"{Component} {Path} ({Direction.ToString().ToLowerInvariant()})";
 }
 
 /// <summary>The outcome of comparing two contracts, after any policy was applied.</summary>
@@ -83,4 +99,52 @@ public static class FindingOrder
             .ThenBy(f => f.Rule.Id, StringComparer.Ordinal)
             .ThenBy(f => f.Message, StringComparer.Ordinal)
             .ToList();
+}
+
+/// <summary>
+/// One change as a reader should see it: a single finding, or the same finding repeated across every operation that
+/// uses a shared component schema.
+/// </summary>
+/// <param name="Members">The findings in this group, in report order. Never empty.</param>
+public sealed record FindingGroup(IReadOnlyList<Finding> Members)
+{
+    /// <summary>The first member; rule, severity, message and origin are the same for every member.</summary>
+    public Finding First => Members[0];
+
+    /// <summary>True when the group stands for more than one finding.</summary>
+    public bool IsShared => Members.Count > 1;
+
+    /// <summary>
+    /// Groups findings that share rule, effective severity, message and <see cref="Finding.Origin"/>. Findings without
+    /// an origin stay on their own. Groups keep the position of their first member, so the result follows
+    /// <see cref="FindingOrder"/>; counts and exit codes are unaffected because they are based on findings.
+    /// </summary>
+    public static IReadOnlyList<FindingGroup> Group(IEnumerable<Finding> findings)
+    {
+        ArgumentNullException.ThrowIfNull(findings);
+
+        var groups = new List<List<Finding>>();
+        var byKey = new Dictionary<(string Rule, Severity Severity, string Message, SchemaOrigin Origin), List<Finding>>();
+
+        foreach (var finding in findings)
+        {
+            if (finding.Origin is null)
+            {
+                groups.Add([finding]);
+                continue;
+            }
+
+            var key = (finding.Rule.Id, finding.Severity, finding.Message, finding.Origin);
+            if (!byKey.TryGetValue(key, out var members))
+            {
+                members = [];
+                byKey[key] = members;
+                groups.Add(members);
+            }
+
+            members.Add(finding);
+        }
+
+        return groups.Select(members => new FindingGroup(members)).ToList();
+    }
 }

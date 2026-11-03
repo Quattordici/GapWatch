@@ -16,27 +16,24 @@ BREAKING (20)
   [GW023] GET /pets
           parameter 'status' (query)
           Enum value(s) no longer accepted: 'sold'.
-  [GW020] GET /pets
-          response 200 application/json: $[].id
+  [GW020] Pet $.id (response), affects 3 operations
           Type changed from 'integer' to 'string'.
-  [GW029] GET /pets
-          response 200 application/json: $[].name
+          - GET /pets       response 200 application/json: $[].id
+          - GET /pets/{id}  response 200 application/json: $.id
+          - POST /pets      response 201 application/json: $.id
+  [GW029] Pet $.name (response), affects 3 operations
           Response property 'name' is no longer guaranteed to be present.
-  [GW022] GET /pets
-          response 200 application/json: $[].owner
+          - GET /pets       response 200 application/json: $[].name
+          - GET /pets/{id}  response 200 application/json: $.name
+          - POST /pets      response 201 application/json: $.name
+  [GW022] Pet $.owner (response), affects 3 operations
           The value can now be null.
+          - GET /pets       response 200 application/json: $[].owner
+          - GET /pets/{id}  response 200 application/json: $.owner
+          - POST /pets      response 201 application/json: $.owner
   [GW052] GET /pets
           security
           Previously accepted security (apiKey[]) was replaced by (bearer[]).
-  [GW020] GET /pets/{id}
-          response 200 application/json: $.id
-          Type changed from 'integer' to 'string'.
-  [GW029] GET /pets/{id}
-          response 200 application/json: $.name
-          Response property 'name' is no longer guaranteed to be present.
-  [GW022] GET /pets/{id}
-          response 200 application/json: $.owner
-          The value can now be null.
   [GW050] GET /pets/{id}
           security
           The operation now requires authentication (bearer[]).
@@ -49,40 +46,23 @@ BREAKING (20)
   [GW043] POST /pets
           request body (application/xml)
           Request media type 'application/xml' is no longer accepted.
-  [GW020] POST /pets
-          response 201 application/json: $.id
-          Type changed from 'integer' to 'string'.
-  [GW029] POST /pets
-          response 201 application/json: $.name
-          Response property 'name' is no longer guaranteed to be present.
-  [GW022] POST /pets
-          response 201 application/json: $.owner
-          The value can now be null.
   [GW052] POST /pets
           security
           Previously accepted security (apiKey[]) was replaced by (bearer[]).
 
 WARNINGS (7)
-  [GW024] GET /pets
-          response 200 application/json: $[].status
+  [GW024] Pet $.status (response), affects 3 operations
           New enum value(s) can be returned: 'archived'.
-  [GW026] GET /pets
-          response 200 application/json: $[].tag
+          - GET /pets       response 200 application/json: $[].status
+          - GET /pets/{id}  response 200 application/json: $.status
+          - POST /pets      response 201 application/json: $.status
+  [GW026] Pet $.tag (response), affects 3 operations
           Optional response property 'tag' was removed.
-  [GW024] GET /pets/{id}
-          response 200 application/json: $.status
-          New enum value(s) can be returned: 'archived'.
-  [GW026] GET /pets/{id}
-          response 200 application/json: $.tag
-          Optional response property 'tag' was removed.
+          - GET /pets       response 200 application/json: $[].tag
+          - GET /pets/{id}  response 200 application/json: $.tag
+          - POST /pets      response 201 application/json: $.tag
   [GW004] POST /pets
           operationId changed from 'createPet' to 'addPet'.
-  [GW024] POST /pets
-          response 201 application/json: $.status
-          New enum value(s) can be returned: 'archived'.
-  [GW026] POST /pets
-          response 201 application/json: $.tag
-          Optional response property 'tag' was removed.
 
 INFO (3)
   [GW002] DELETE /pets/{id}

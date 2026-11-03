@@ -236,6 +236,12 @@ public sealed class SarifReportRenderer : IReportRenderer
         json.WriteString("operation", finding.Operation);
         json.WriteString("location", finding.Location);
         json.WriteString("severity", finding.Severity.ToString());
+        if (finding.Origin is { } origin)
+        {
+            json.WriteString("component", origin.Component);
+            json.WriteString("componentPath", origin.Path);
+        }
+
         json.WriteEndObject();
 
         json.WriteEndObject();
