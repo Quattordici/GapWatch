@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="utf-8"?>
+<testsuites name="GapWatch" tests="30" failures="20" errors="0" skipped="0">
+  <testsuite name="GapWatch: petstore-v1.json -&gt; petstore-v2.json" tests="30" failures="20" errors="0" skipped="0">
+    <testcase classname="DELETE /pets/{id}" name="GW044 SuccessResponseRemoved: response 204">
+      <failure message="Success response 204 was removed." type="GW044 Breaking">DELETE /pets/{id} response 204: Success response 204 was removed.</failure>
+    </testcase>
+    <testcase classname="DELETE /pets/{id}" name="GW052 SecurityRequirementsReplaced: security">
+      <failure message="Previously accepted security (apiKey[]) was replaced by (bearer[])." type="GW052 Breaking">DELETE /pets/{id} security: Previously accepted security (apiKey[]) was replaced by (bearer[]).</failure>
+    </testcase>
+    <testcase classname="GET /owners" name="GW001 OperationRemoved: operation">
+      <failure message="Operation 'GET /owners' was removed." type="GW001 Breaking">GET /owners operation: Operation 'GET /owners' was removed.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW010 RequiredParameterAdded: parameter 'region' (query)">
+      <failure message="Required parameter 'region' (query) was added." type="GW010 Breaking">GET /pets parameter 'region' (query): Required parameter 'region' (query) was added.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW023 EnumValueRemoved: parameter 'status' (query)">
+      <failure message="Enum value(s) no longer accepted: 'sold'." type="GW023 Breaking">GET /pets parameter 'status' (query): Enum value(s) no longer accepted: 'sold'.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW020 TypeChanged: response 200 application/json: $[].id">
+      <failure message="Type changed from 'integer' to 'string'." type="GW020 Breaking">GET /pets response 200 application/json: $[].id: Type changed from 'integer' to 'string'.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW029 PropertyBecameOptional: response 200 application/json: $[].name">
+      <failure message="Response property 'name' is no longer guaranteed to be present." type="GW029 Breaking">GET /pets response 200 application/json: $[].name: Response property 'name' is no longer guaranteed to be present.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW022 NullabilityChanged: response 200 application/json: $[].owner">
+      <failure message="The value can now be null." type="GW022 Breaking">GET /pets response 200 application/json: $[].owner: The value can now be null.</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW052 SecurityRequirementsReplaced: security">
+      <failure message="Previously accepted security (apiKey[]) was replaced by (bearer[])." type="GW052 Breaking">GET /pets security: Previously accepted security (apiKey[]) was replaced by (bearer[]).</failure>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW020 TypeChanged: response 200 application/json: $.id">
+      <failure message="Type changed from 'integer' to 'string'." type="GW020 Breaking">GET /pets/{id} response 200 application/json: $.id: Type changed from 'integer' to 'string'.</failure>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW029 PropertyBecameOptional: response 200 application/json: $.name">
+      <failure message="Response property 'name' is no longer guaranteed to be present." type="GW029 Breaking">GET /pets/{id} response 200 application/json: $.name: Response property 'name' is no longer guaranteed to be present.</failure>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW022 NullabilityChanged: response 200 application/json: $.owner">
+      <failure message="The value can now be null." type="GW022 Breaking">GET /pets/{id} response 200 application/json: $.owner: The value can now be null.</failure>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW050 SecurityAdded: security">
+      <failure message="The operation now requires authentication (bearer[])." type="GW050 Breaking">GET /pets/{id} security: The operation now requires authentication (bearer[]).</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW028 PropertyBecameRequired: request body (application/json): $.kind">
+      <failure message="Request property 'kind' became required." type="GW028 Breaking">POST /pets request body (application/json): $.kind: Request property 'kind' became required.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW027 RequiredPropertyAdded: request body (application/json): $.ownerId">
+      <failure message="New required request property 'ownerId' was added." type="GW027 Breaking">POST /pets request body (application/json): $.ownerId: New required request property 'ownerId' was added.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW043 MediaTypeRemoved: request body (application/xml)">
+      <failure message="Request media type 'application/xml' is no longer accepted." type="GW043 Breaking">POST /pets request body (application/xml): Request media type 'application/xml' is no longer accepted.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW020 TypeChanged: response 201 application/json: $.id">
+      <failure message="Type changed from 'integer' to 'string'." type="GW020 Breaking">POST /pets response 201 application/json: $.id: Type changed from 'integer' to 'string'.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW029 PropertyBecameOptional: response 201 application/json: $.name">
+      <failure message="Response property 'name' is no longer guaranteed to be present." type="GW029 Breaking">POST /pets response 201 application/json: $.name: Response property 'name' is no longer guaranteed to be present.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW022 NullabilityChanged: response 201 application/json: $.owner">
+      <failure message="The value can now be null." type="GW022 Breaking">POST /pets response 201 application/json: $.owner: The value can now be null.</failure>
+    </testcase>
+    <testcase classname="POST /pets" name="GW052 SecurityRequirementsReplaced: security">
+      <failure message="Previously accepted security (apiKey[]) was replaced by (bearer[])." type="GW052 Breaking">POST /pets security: Previously accepted security (apiKey[]) was replaced by (bearer[]).</failure>
+    </testcase>
+    <testcase classname="GET /pets" name="GW024 EnumValueAdded: response 200 application/json: $[].status">
+      <system-out>Warning: GET /pets response 200 application/json: $[].status: New enum value(s) can be returned: 'archived'.</system-out>
+    </testcase>
+    <testcase classname="GET /pets" name="GW026 PropertyRemoved: response 200 application/json: $[].tag">
+      <system-out>Warning: GET /pets response 200 application/json: $[].tag: Optional response property 'tag' was removed.</system-out>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW024 EnumValueAdded: response 200 application/json: $.status">
+      <system-out>Warning: GET /pets/{id} response 200 application/json: $.status: New enum value(s) can be returned: 'archived'.</system-out>
+    </testcase>
+    <testcase classname="GET /pets/{id}" name="GW026 PropertyRemoved: response 200 application/json: $.tag">
+      <system-out>Warning: GET /pets/{id} response 200 application/json: $.tag: Optional response property 'tag' was removed.</system-out>
+    </testcase>
+    <testcase classname="POST /pets" name="GW004 OperationIdChanged: operation">
+      <system-out>Warning: POST /pets operation: operationId changed from 'createPet' to 'addPet'.</system-out>
+    </testcase>
+    <testcase classname="POST /pets" name="GW024 EnumValueAdded: response 201 application/json: $.status">
+      <system-out>Warning: POST /pets response 201 application/json: $.status: New enum value(s) can be returned: 'archived'.</system-out>
+    </testcase>
+    <testcase classname="POST /pets" name="GW026 PropertyRemoved: response 201 application/json: $.tag">
+      <system-out>Warning: POST /pets response 201 application/json: $.tag: Optional response property 'tag' was removed.</system-out>
+    </testcase>
+    <testcase classname="DELETE /pets/{id}" name="GW002 OperationDeprecated: operation">
+      <system-out>Info: DELETE /pets/{id} operation: Operation 'DELETE /pets/{id}' was marked deprecated.</system-out>
+    </testcase>
+    <testcase classname="GET /health" name="GW003 OperationAdded: operation">
+      <system-out>Info: GET /health operation: Operation 'GET /health' was added.</system-out>
+    </testcase>
+    <testcase classname="POST /pets" name="GW045 ResponseRemoved: response 400">
+      <system-out>Info: POST /pets response 400: Response 400 was removed.</system-out>
+    </testcase>
+  </testsuite>
+</testsuites>

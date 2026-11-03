@@ -18,7 +18,7 @@ public sealed class CliTests
         return (code, output.ToString(), error.ToString());
     }
 
-    [Fact]
+    [Test]
     public void Compare_with_breaking_changes_exits_with_findings_code_and_prints_the_report()
     {
         var (code, output, _) = Run("compare", V1, V2);
@@ -28,7 +28,7 @@ public sealed class CliTests
         output.ShouldContain("GW001");
     }
 
-    [Fact]
+    [Test]
     public void Compare_of_identical_files_succeeds()
     {
         var (code, output, _) = Run("compare", V1, V1);
@@ -37,13 +37,13 @@ public sealed class CliTests
         output.ShouldContain("No differences that affect consumers");
     }
 
-    [Fact]
+    [Test]
     public void Fail_on_none_never_fails_on_findings()
     {
         Run("compare", V1, V2, "--fail-on", "none").Code.ShouldBe(ExitCodes.Success);
     }
 
-    [Fact]
+    [Test]
     public void Fail_on_warning_fails_on_warnings_but_the_default_does_not()
     {
         using var dir = new TempDir();
@@ -54,14 +54,14 @@ public sealed class CliTests
         Run("compare", before, after, "--fail-on", "warning").Code.ShouldBe(ExitCodes.FindingsAtThreshold);
     }
 
-    [Fact]
+    [Test]
     public void Markdown_format_is_selectable_with_both_option_styles()
     {
         Run("compare", V1, V2, "--format", "markdown").Out.ShouldContain(GapWatch.Reporting.MarkdownReportRenderer.Marker);
         Run("compare", V1, V2, "--format=markdown").Out.ShouldContain(GapWatch.Reporting.MarkdownReportRenderer.Marker);
     }
 
-    [Fact]
+    [Test]
     public void Output_option_writes_the_report_to_a_file_and_summarizes_on_stdout()
     {
         using var dir = new TempDir();
@@ -75,7 +75,72 @@ public sealed class CliTests
         output.ShouldNotContain("## GapWatch");
     }
 
-    [Fact]
+    [Test]
+    public void Config_can_raise_a_rule_to_breaking()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Parameter("q", "query", """{ "type": "string" }"""));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/x"));
+        var config = dir.Write("gapwatch.json", """{ "rules": { "GW012": "breaking" } }""");
+
+        Run("compare", before, after, "--config", config).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+    }
+
+    [Test]
+    public void Config_suppressions_take_findings_out_of_the_exit_code_and_show_the_justification()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Operation("get", "/x"));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/y"));
+        var config = dir.Write(
+            "gapwatch.json",
+            """{ "suppressions": [ { "rule": "GW001", "operation": "GET /x", "justification": "Retired, no traffic for 90 days." } ] }""");
+
+        Run("compare", before, after).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+
+        var (code, output, _) = Run("compare", before, after, "--config", config);
+
+        code.ShouldBe(ExitCodes.Success);
+        output.ShouldContain("0 breaking, 0 warning(s), 1 info, 1 suppressed");
+        output.ShouldContain("SUPPRESSED (1)");
+        output.ShouldContain("Justification: Retired, no traffic for 90 days.");
+    }
+
+    [Test]
+    public void Invalid_or_missing_config_is_an_error()
+    {
+        using var dir = new TempDir();
+        var unjustified = dir.Write("gapwatch.json", """{ "suppressions": [ { "rule": "GW001" } ] }""");
+
+        var (code, output, error) = Run("compare", V1, V2, "--config", unjustified);
+
+        code.ShouldBe(ExitCodes.Error);
+        output.ShouldBeEmpty();
+        error.ShouldContain("has no justification");
+        Run("compare", V1, V2, "--config", "/definitely/not/gapwatch.json").Code.ShouldBe(ExitCodes.Error);
+    }
+
+    [Test]
+    public void Sarif_and_junit_formats_are_selectable_and_keep_the_exit_code()
+    {
+        var sarif = Run("compare", V1, V2, "--format", "sarif");
+        var junit = Run("compare", V1, V2, "--format", "junit", "--fail-on", "none");
+
+        sarif.Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        sarif.Out.ShouldContain("\"version\": \"2.1.0\"");
+        sarif.Out.ShouldContain("\"semanticVersion\"");
+        junit.Code.ShouldBe(ExitCodes.Success);
+        junit.Out.ShouldContain("<testsuites name=\"GapWatch\"");
+        junit.Out.ShouldContain("failures=\"0\"");
+    }
+
+    [Test]
+    public void Rules_does_not_accept_report_only_formats()
+    {
+        Run("rules", "--format", "sarif").Code.ShouldBe(ExitCodes.Error);
+    }
+
+    [Test]
     public void No_arguments_is_a_usage_error()
     {
         var (code, _, error) = Run();
@@ -84,7 +149,7 @@ public sealed class CliTests
         error.ShouldContain("Usage:");
     }
 
-    [Fact]
+    [Test]
     public void Unknown_commands_and_options_are_usage_errors()
     {
         Run("frobnicate").Code.ShouldBe(ExitCodes.Error);
@@ -94,14 +159,14 @@ public sealed class CliTests
         Run("compare", V1, V2, "--format").Code.ShouldBe(ExitCodes.Error);
     }
 
-    [Fact]
+    [Test]
     public void Compare_requires_exactly_two_inputs()
     {
         Run("compare", V1).Code.ShouldBe(ExitCodes.Error);
         Run("compare", V1, V2, V2).Code.ShouldBe(ExitCodes.Error);
     }
 
-    [Fact]
+    [Test]
     public void Missing_files_are_reported_on_stderr_with_the_error_code()
     {
         var (code, output, error) = Run("compare", V1, "/definitely/not/here.json");
@@ -111,7 +176,7 @@ public sealed class CliTests
         error.ShouldContain("not found");
     }
 
-    [Fact]
+    [Test]
     public void Invalid_documents_are_reported_not_thrown()
     {
         using var dir = new TempDir();
@@ -123,7 +188,7 @@ public sealed class CliTests
         error.ShouldStartWith("error:");
     }
 
-    [Fact]
+    [Test]
     public void Rules_lists_every_rule_in_both_formats()
     {
         var console = Run("rules");
@@ -138,7 +203,7 @@ public sealed class CliTests
         }
     }
 
-    [Fact]
+    [Test]
     public void Help_and_version_succeed()
     {
         Run("--help").Out.ShouldContain("gapwatch compare");

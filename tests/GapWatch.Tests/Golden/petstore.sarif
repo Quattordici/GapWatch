@@ -1,0 +1,1653 @@
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "GapWatch",
+          "informationUri": "https://github.com/Quattordici/GapWatch",
+          "rules": [
+            {
+              "id": "GW001",
+              "name": "OperationRemoved",
+              "shortDescription": {
+                "text": "OperationRemoved"
+              },
+              "fullDescription": {
+                "text": "An operation (method + path) that existed in the base contract no longer exists."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW002",
+              "name": "OperationDeprecated",
+              "shortDescription": {
+                "text": "OperationDeprecated"
+              },
+              "fullDescription": {
+                "text": "An operation was newly marked deprecated."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW003",
+              "name": "OperationAdded",
+              "shortDescription": {
+                "text": "OperationAdded"
+              },
+              "fullDescription": {
+                "text": "A new operation was added."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW004",
+              "name": "OperationIdChanged",
+              "shortDescription": {
+                "text": "OperationIdChanged"
+              },
+              "fullDescription": {
+                "text": "The operationId changed. Generated clients (NSwag, Kiota, ...) name their methods after it, so this breaks callers of the generated code."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW010",
+              "name": "RequiredParameterAdded",
+              "shortDescription": {
+                "text": "RequiredParameterAdded"
+              },
+              "fullDescription": {
+                "text": "A new required parameter was added; existing callers do not send it."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW011",
+              "name": "ParameterBecameRequired",
+              "shortDescription": {
+                "text": "ParameterBecameRequired"
+              },
+              "fullDescription": {
+                "text": "An optional parameter became required; callers that omitted it now fail."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW012",
+              "name": "ParameterRemoved",
+              "shortDescription": {
+                "text": "ParameterRemoved"
+              },
+              "fullDescription": {
+                "text": "A parameter was removed. Callers that still send it may be rejected or silently ignored."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW020",
+              "name": "TypeChanged",
+              "shortDescription": {
+                "text": "TypeChanged"
+              },
+              "fullDescription": {
+                "text": "A type changed incompatibly. Requests: the server stopped accepting a type it accepted. Responses: the server may now return a type consumers do not expect. (integer to number widening is request-safe only.)"
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW021",
+              "name": "FormatChanged",
+              "shortDescription": {
+                "text": "FormatChanged"
+              },
+              "fullDescription": {
+                "text": "A format changed incompatibly (for example int32 to int64 in a response, or date to date-time in either direction)."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW022",
+              "name": "NullabilityChanged",
+              "shortDescription": {
+                "text": "NullabilityChanged"
+              },
+              "fullDescription": {
+                "text": "Requests: a nullable value became non-nullable. Responses: a non-nullable value became nullable."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW023",
+              "name": "EnumValueRemoved",
+              "shortDescription": {
+                "text": "EnumValueRemoved"
+              },
+              "fullDescription": {
+                "text": "Request enum: an accepted value was removed, or an enum constraint was introduced on a previously free value."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW024",
+              "name": "EnumValueAdded",
+              "shortDescription": {
+                "text": "EnumValueAdded"
+              },
+              "fullDescription": {
+                "text": "Response enum: a new value can be returned (or the enum constraint was dropped). Consumers with exhaustive handling or strict enum deserialization may fail."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW025",
+              "name": "RequiredPropertyRemoved",
+              "shortDescription": {
+                "text": "RequiredPropertyRemoved"
+              },
+              "fullDescription": {
+                "text": "Response: a property that was always present was removed."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW026",
+              "name": "PropertyRemoved",
+              "shortDescription": {
+                "text": "PropertyRemoved"
+              },
+              "fullDescription": {
+                "text": "A property was removed (an optional response property, or any request property)."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW027",
+              "name": "RequiredPropertyAdded",
+              "shortDescription": {
+                "text": "RequiredPropertyAdded"
+              },
+              "fullDescription": {
+                "text": "Request: a new required property was added; existing callers do not send it."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW028",
+              "name": "PropertyBecameRequired",
+              "shortDescription": {
+                "text": "PropertyBecameRequired"
+              },
+              "fullDescription": {
+                "text": "Request: an optional property became required."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW029",
+              "name": "PropertyBecameOptional",
+              "shortDescription": {
+                "text": "PropertyBecameOptional"
+              },
+              "fullDescription": {
+                "text": "Response: a property that was always present may now be missing."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW030",
+              "name": "VariantRemoved",
+              "shortDescription": {
+                "text": "VariantRemoved"
+              },
+              "fullDescription": {
+                "text": "Request: a oneOf/anyOf alternative that was accepted is no longer accepted."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW031",
+              "name": "VariantAdded",
+              "shortDescription": {
+                "text": "VariantAdded"
+              },
+              "fullDescription": {
+                "text": "Response: a new oneOf/anyOf alternative can be returned that consumers may not handle."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW040",
+              "name": "RequiredRequestBodyAdded",
+              "shortDescription": {
+                "text": "RequiredRequestBodyAdded"
+              },
+              "fullDescription": {
+                "text": "A required request body was added to an operation that had none."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW041",
+              "name": "RequestBodyBecameRequired",
+              "shortDescription": {
+                "text": "RequestBodyBecameRequired"
+              },
+              "fullDescription": {
+                "text": "An optional request body became required."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW042",
+              "name": "RequestBodyRemoved",
+              "shortDescription": {
+                "text": "RequestBodyRemoved"
+              },
+              "fullDescription": {
+                "text": "The request body was removed. Callers that still send one may be rejected or ignored."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW043",
+              "name": "MediaTypeRemoved",
+              "shortDescription": {
+                "text": "MediaTypeRemoved"
+              },
+              "fullDescription": {
+                "text": "A media type that consumers could send or receive is no longer supported."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW044",
+              "name": "SuccessResponseRemoved",
+              "shortDescription": {
+                "text": "SuccessResponseRemoved"
+              },
+              "fullDescription": {
+                "text": "A success (2xx) response was removed."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW045",
+              "name": "ResponseRemoved",
+              "shortDescription": {
+                "text": "ResponseRemoved"
+              },
+              "fullDescription": {
+                "text": "A non-success response was removed from the contract."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW050",
+              "name": "SecurityAdded",
+              "shortDescription": {
+                "text": "SecurityAdded"
+              },
+              "fullDescription": {
+                "text": "An operation that allowed anonymous access now requires authentication."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW051",
+              "name": "SecurityRequirementRemoved",
+              "shortDescription": {
+                "text": "SecurityRequirementRemoved"
+              },
+              "fullDescription": {
+                "text": "A previously accepted security alternative (scheme or scope set) is no longer accepted."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW052",
+              "name": "SecurityRequirementsReplaced",
+              "shortDescription": {
+                "text": "SecurityRequirementsReplaced"
+              },
+              "fullDescription": {
+                "text": "None of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true
+        }
+      ],
+      "artifacts": [
+        {
+          "location": {
+            "uri": "petstore-v1.json"
+          },
+          "roles": [
+            "referencedOnCommandLine"
+          ]
+        },
+        {
+          "location": {
+            "uri": "petstore-v2.json"
+          },
+          "roles": [
+            "analysisTarget"
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "GW044",
+          "ruleIndex": 23,
+          "level": "error",
+          "message": {
+            "text": "DELETE /pets/{id}: Success response 204 was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 204",
+                  "fullyQualifiedName": "DELETE /pets/{id} > response 204",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "ce431c6eb62d55b112261d320f5fcaeb5b661957417a8cfba641653af1a302ae"
+          },
+          "properties": {
+            "operation": "DELETE /pets/{id}",
+            "location": "response 204",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW052",
+          "ruleIndex": 27,
+          "level": "error",
+          "message": {
+            "text": "DELETE /pets/{id}: Previously accepted security (apiKey[]) was replaced by (bearer[])."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "security",
+                  "fullyQualifiedName": "DELETE /pets/{id} > security",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "0a001c87e987c19f144d67466d781cad5b736c87e302759bae79898ba27f3a9f"
+          },
+          "properties": {
+            "operation": "DELETE /pets/{id}",
+            "location": "security",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW001",
+          "ruleIndex": 0,
+          "level": "error",
+          "message": {
+            "text": "GET /owners: Operation 'GET /owners' was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "operation",
+                  "fullyQualifiedName": "GET /owners > operation",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "d0f208fa7dcbd8c9423ceeef8baf25874a865095df53fc72058b080e87938a63"
+          },
+          "properties": {
+            "operation": "GET /owners",
+            "location": "operation",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW010",
+          "ruleIndex": 4,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: Required parameter 'region' (query) was added."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "parameter 'region' (query)",
+                  "fullyQualifiedName": "GET /pets > parameter 'region' (query)",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "484c536d88bf512c6eb77d873810a7385184c594854830be0d795a8f91dd3612"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "parameter 'region' (query)",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW023",
+          "ruleIndex": 10,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: Enum value(s) no longer accepted: 'sold'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "parameter 'status' (query)",
+                  "fullyQualifiedName": "GET /pets > parameter 'status' (query)",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "22694312bc0c7dfc2069a9bf7a10fd17056265329b9f27087e155b2877eef0ed"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "parameter 'status' (query)",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW020",
+          "ruleIndex": 7,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: Type changed from 'integer' to 'string'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $[].id",
+                  "fullyQualifiedName": "GET /pets > response 200 application/json: $[].id",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "2d201d4b67464efb19549648104ceb8b7de4d6827c1182c4ab5ffc0dafeffc55"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "response 200 application/json: $[].id",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW029",
+          "ruleIndex": 16,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: Response property 'name' is no longer guaranteed to be present."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $[].name",
+                  "fullyQualifiedName": "GET /pets > response 200 application/json: $[].name",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "5b62d457ef7c6f0d1ce0d073fe3798da20b123393ff4533e8aae7e7a6b3b6516"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "response 200 application/json: $[].name",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW022",
+          "ruleIndex": 9,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: The value can now be null."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $[].owner",
+                  "fullyQualifiedName": "GET /pets > response 200 application/json: $[].owner",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "93156898b4f35d288f384baedb25f589e631b7e5a96bec5f3ba7b764289cd730"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "response 200 application/json: $[].owner",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW052",
+          "ruleIndex": 27,
+          "level": "error",
+          "message": {
+            "text": "GET /pets: Previously accepted security (apiKey[]) was replaced by (bearer[])."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "security",
+                  "fullyQualifiedName": "GET /pets > security",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "9573d092f3b032abf2fa0a365d009b8922f4e3aa32ba7a581a7e4e9143cbaae1"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "security",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW020",
+          "ruleIndex": 7,
+          "level": "error",
+          "message": {
+            "text": "GET /pets/{id}: Type changed from 'integer' to 'string'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $.id",
+                  "fullyQualifiedName": "GET /pets/{id} > response 200 application/json: $.id",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "3937dc663776a260d89d8341ab2ac12832bd22ba17a3ce81200fada1f69ddbf4"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "response 200 application/json: $.id",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW029",
+          "ruleIndex": 16,
+          "level": "error",
+          "message": {
+            "text": "GET /pets/{id}: Response property 'name' is no longer guaranteed to be present."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $.name",
+                  "fullyQualifiedName": "GET /pets/{id} > response 200 application/json: $.name",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "c92640f20252c82a78dfd7c5bef6e1ca55ffe810f92846ba8a6c73b573ea6b64"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "response 200 application/json: $.name",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW022",
+          "ruleIndex": 9,
+          "level": "error",
+          "message": {
+            "text": "GET /pets/{id}: The value can now be null."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $.owner",
+                  "fullyQualifiedName": "GET /pets/{id} > response 200 application/json: $.owner",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "77771bc8a3e2b227a01be7977f197752ee5dc3930795107c719ec5e4aea32c99"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "response 200 application/json: $.owner",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW050",
+          "ruleIndex": 25,
+          "level": "error",
+          "message": {
+            "text": "GET /pets/{id}: The operation now requires authentication (bearer[])."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "security",
+                  "fullyQualifiedName": "GET /pets/{id} > security",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "3f235e9bb00b6fcfc75e3705b2cd813e853c3c68568646f66ef529bff6553cb7"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "security",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW028",
+          "ruleIndex": 15,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: Request property 'kind' became required."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "request body (application/json): $.kind",
+                  "fullyQualifiedName": "POST /pets > request body (application/json): $.kind",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "c991f1e04e07b490a6d5298f79349dce9f2c2697709771c950dc7aee27d7c862"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "request body (application/json): $.kind",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW027",
+          "ruleIndex": 14,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: New required request property 'ownerId' was added."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "request body (application/json): $.ownerId",
+                  "fullyQualifiedName": "POST /pets > request body (application/json): $.ownerId",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "a848e8eb991e63fa0600495371e60754c85b3640bd4256bbfbd18c115c4e2076"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "request body (application/json): $.ownerId",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW043",
+          "ruleIndex": 22,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: Request media type 'application/xml' is no longer accepted."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "request body (application/xml)",
+                  "fullyQualifiedName": "POST /pets > request body (application/xml)",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "70a0567626378ac0612688f78d6b7babdd9e13e19431a0dbc85c33f4e16f8741"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "request body (application/xml)",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW020",
+          "ruleIndex": 7,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: Type changed from 'integer' to 'string'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 201 application/json: $.id",
+                  "fullyQualifiedName": "POST /pets > response 201 application/json: $.id",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "6ebe5b304b6c92f6b718efd78b6cc9786e811b9790bd9e437b53245e82282583"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 201 application/json: $.id",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW029",
+          "ruleIndex": 16,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: Response property 'name' is no longer guaranteed to be present."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 201 application/json: $.name",
+                  "fullyQualifiedName": "POST /pets > response 201 application/json: $.name",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "c80a911190059dba19b1674b920acda34f5567fe4316c1de653b8a1a3d29411e"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 201 application/json: $.name",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW022",
+          "ruleIndex": 9,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: The value can now be null."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 201 application/json: $.owner",
+                  "fullyQualifiedName": "POST /pets > response 201 application/json: $.owner",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "2cbaeb3e11816a91d81cc9c6175670d97a88938c36c221c9ee00703cbfb62407"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 201 application/json: $.owner",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW052",
+          "ruleIndex": 27,
+          "level": "error",
+          "message": {
+            "text": "POST /pets: Previously accepted security (apiKey[]) was replaced by (bearer[])."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "security",
+                  "fullyQualifiedName": "POST /pets > security",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "f57e9b814035db10803db486fb6a2585b38937ad3ca3f6333f97711cbb78f125"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "security",
+            "severity": "Breaking"
+          }
+        },
+        {
+          "ruleId": "GW024",
+          "ruleIndex": 11,
+          "level": "warning",
+          "message": {
+            "text": "GET /pets: New enum value(s) can be returned: 'archived'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $[].status",
+                  "fullyQualifiedName": "GET /pets > response 200 application/json: $[].status",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "fd865fd1831c85ed6df2590e04c7b16e48f8ef1dcb22e9db742015a847ff0dbe"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "response 200 application/json: $[].status",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW026",
+          "ruleIndex": 13,
+          "level": "warning",
+          "message": {
+            "text": "GET /pets: Optional response property 'tag' was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $[].tag",
+                  "fullyQualifiedName": "GET /pets > response 200 application/json: $[].tag",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "731d0ef222df7dec2423e16220436a0749006e20184b94d5401286b319e68165"
+          },
+          "properties": {
+            "operation": "GET /pets",
+            "location": "response 200 application/json: $[].tag",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW024",
+          "ruleIndex": 11,
+          "level": "warning",
+          "message": {
+            "text": "GET /pets/{id}: New enum value(s) can be returned: 'archived'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $.status",
+                  "fullyQualifiedName": "GET /pets/{id} > response 200 application/json: $.status",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "4184daf9fdc25947cab1aee8acb8cfb937a29b0bfa6a8326be3a2119a8d90ee9"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "response 200 application/json: $.status",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW026",
+          "ruleIndex": 13,
+          "level": "warning",
+          "message": {
+            "text": "GET /pets/{id}: Optional response property 'tag' was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 200 application/json: $.tag",
+                  "fullyQualifiedName": "GET /pets/{id} > response 200 application/json: $.tag",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "e0fd7e72e14f571f03370efedd3716a07ca265061c20a180512d6dae257c2392"
+          },
+          "properties": {
+            "operation": "GET /pets/{id}",
+            "location": "response 200 application/json: $.tag",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW004",
+          "ruleIndex": 3,
+          "level": "warning",
+          "message": {
+            "text": "POST /pets: operationId changed from 'createPet' to 'addPet'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "operation",
+                  "fullyQualifiedName": "POST /pets > operation",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "7f94a89cc752381503073492eb2934afcd6d28ac1a23468753d94515cb25110c"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "operation",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW024",
+          "ruleIndex": 11,
+          "level": "warning",
+          "message": {
+            "text": "POST /pets: New enum value(s) can be returned: 'archived'."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 201 application/json: $.status",
+                  "fullyQualifiedName": "POST /pets > response 201 application/json: $.status",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "b813bd6df9681dd5507f880468d38bd4041ec643ad5dcf0a66ffe795e7ab5fb4"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 201 application/json: $.status",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW026",
+          "ruleIndex": 13,
+          "level": "warning",
+          "message": {
+            "text": "POST /pets: Optional response property 'tag' was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 201 application/json: $.tag",
+                  "fullyQualifiedName": "POST /pets > response 201 application/json: $.tag",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "8028c1e36dd7882441863b3c612abe431d3785ca1373e406f70fbfb36a052712"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 201 application/json: $.tag",
+            "severity": "Warning"
+          }
+        },
+        {
+          "ruleId": "GW002",
+          "ruleIndex": 1,
+          "level": "note",
+          "message": {
+            "text": "DELETE /pets/{id}: Operation 'DELETE /pets/{id}' was marked deprecated."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "operation",
+                  "fullyQualifiedName": "DELETE /pets/{id} > operation",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "6a7c2fed2daf49daa4e4247f4fae67535bc2bc369ed32a1863afcd014293307d"
+          },
+          "properties": {
+            "operation": "DELETE /pets/{id}",
+            "location": "operation",
+            "severity": "Info"
+          }
+        },
+        {
+          "ruleId": "GW003",
+          "ruleIndex": 2,
+          "level": "note",
+          "message": {
+            "text": "GET /health: Operation 'GET /health' was added."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "operation",
+                  "fullyQualifiedName": "GET /health > operation",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "b3c158f18744ed963ff33569f4bbce3cac91d49c7467ed59cc24a7dece458753"
+          },
+          "properties": {
+            "operation": "GET /health",
+            "location": "operation",
+            "severity": "Info"
+          }
+        },
+        {
+          "ruleId": "GW045",
+          "ruleIndex": 24,
+          "level": "note",
+          "message": {
+            "text": "POST /pets: Response 400 was removed."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "petstore-v2.json",
+                  "index": 1
+                },
+                "region": {
+                  "startLine": 1
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "response 400",
+                  "fullyQualifiedName": "POST /pets > response 400",
+                  "kind": "member"
+                }
+              ]
+            }
+          ],
+          "partialFingerprints": {
+            "gapwatchFinding/v1": "0df29254167779a3f974c29870ba8e1cd89f294693b6233cf93e0852ba243ae2"
+          },
+          "properties": {
+            "operation": "POST /pets",
+            "location": "response 400",
+            "severity": "Info"
+          }
+        }
+      ]
+    }
+  ]
+}

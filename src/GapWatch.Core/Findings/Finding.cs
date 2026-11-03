@@ -37,19 +37,50 @@ public sealed record RuleDescriptor(string Id, string Name, Severity DefaultSeve
 /// <param name="Message">Complete, standalone explanation.</param>
 public sealed record Finding(RuleDescriptor Rule, string Operation, string Location, string Message)
 {
-    /// <summary>Severity of the rule that produced this finding.</summary>
-    public Severity Severity => Rule.DefaultSeverity;
+    /// <summary>
+    /// Effective severity: the rule's default unless a <see cref="Policy.CompatibilityPolicy"/> overrode it.
+    /// </summary>
+    public Severity Severity { get; init; } = Rule.DefaultSeverity;
 }
 
-/// <summary>The outcome of comparing two contracts.</summary>
-public sealed class ComparisonResult(IReadOnlyList<Finding> findings)
+/// <summary>The outcome of comparing two contracts, after any policy was applied.</summary>
+/// <param name="findings">Active findings: they count towards the summary and the exit code.</param>
+/// <param name="suppressed">Findings silenced by a justified suppression. Reported for auditability, never counted.</param>
+/// <param name="unusedSuppressions">Suppressions that matched no finding, usually because the change was reverted or fixed.</param>
+public sealed class ComparisonResult(
+    IReadOnlyList<Finding> findings,
+    IReadOnlyList<SuppressedFinding>? suppressed = null,
+    IReadOnlyList<Policy.Suppression>? unusedSuppressions = null)
 {
-    /// <summary>All findings, most severe first, then by operation and location.</summary>
+    /// <summary>Active findings, most severe first, then by operation and location.</summary>
     public IReadOnlyList<Finding> Findings { get; } = findings;
 
-    /// <summary>Number of findings with exactly the given severity.</summary>
+    /// <summary>Findings silenced by a suppression, in the same order as <see cref="Findings"/>.</summary>
+    public IReadOnlyList<SuppressedFinding> Suppressed { get; } = suppressed ?? [];
+
+    /// <summary>Suppressions that matched nothing; candidates for removal from the configuration.</summary>
+    public IReadOnlyList<Policy.Suppression> UnusedSuppressions { get; } = unusedSuppressions ?? [];
+
+    /// <summary>Number of active findings with exactly the given severity.</summary>
     public int Count(Severity severity) => Findings.Count(f => f.Severity == severity);
 
-    /// <summary>True when at least one finding is at or above <paramref name="threshold"/>.</summary>
+    /// <summary>True when at least one active finding is at or above <paramref name="threshold"/>.</summary>
     public bool HasAtLeast(Severity threshold) => Findings.Any(f => f.Severity >= threshold);
+}
+
+/// <summary>A finding together with the suppression that silenced it.</summary>
+public sealed record SuppressedFinding(Finding Finding, Policy.Suppression Suppression);
+
+/// <summary>The canonical, deterministic order of findings in every report.</summary>
+public static class FindingOrder
+{
+    /// <summary>Most severe first, then by operation, location, rule id and message (all ordinal).</summary>
+    public static List<Finding> Sort(IEnumerable<Finding> findings) =>
+        findings
+            .OrderByDescending(f => f.Severity)
+            .ThenBy(f => f.Operation, StringComparer.Ordinal)
+            .ThenBy(f => f.Location, StringComparer.Ordinal)
+            .ThenBy(f => f.Rule.Id, StringComparer.Ordinal)
+            .ThenBy(f => f.Message, StringComparer.Ordinal)
+            .ToList();
 }

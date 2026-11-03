@@ -15,7 +15,7 @@ public sealed class BodyResponseAndSecurityRuleTests
 
     // --- Request bodies ------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Adding_a_required_request_body_is_breaking_GW040()
     {
         var before = TestSpec.Operation("post", "/x");
@@ -24,7 +24,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW040");
     }
 
-    [Fact]
+    [Test]
     public void Adding_an_optional_request_body_is_safe()
     {
         var before = TestSpec.Operation("post", "/x");
@@ -33,7 +33,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Making_the_request_body_required_is_breaking_GW041()
     {
         var before = Post(Json(string.Empty));
@@ -42,7 +42,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW041");
     }
 
-    [Fact]
+    [Test]
     public void Removing_the_request_body_warns_GW042()
     {
         var before = Post(Json("\"required\": true,"));
@@ -51,7 +51,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW042");
     }
 
-    [Fact]
+    [Test]
     public void Dropping_an_accepted_request_media_type_is_breaking_GW043()
     {
         var before = Post("""{ "content": { "application/json": { "schema": { "type": "string" } }, "application/xml": { "schema": { "type": "string" } } } }""");
@@ -63,7 +63,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         finding.Message.ShouldContain("application/xml");
     }
 
-    [Fact]
+    [Test]
     public void Adding_an_accepted_request_media_type_is_safe()
     {
         var before = Post("""{ "content": { "application/json": { "schema": { "type": "string" } } } }""");
@@ -72,7 +72,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Media_type_parameters_and_case_are_ignored()
     {
         var before = Post("""{ "content": { "application/json; charset=utf-8": { "schema": { "type": "string" } } } }""");
@@ -83,7 +83,7 @@ public sealed class BodyResponseAndSecurityRuleTests
 
     // --- Responses -----------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Removing_a_success_response_is_breaking_GW044()
     {
         var before = TestSpec.Operation("get", "/x", "\"responses\": { \"200\": { \"description\": \"d\" } }");
@@ -92,7 +92,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW044");
     }
 
-    [Fact]
+    [Test]
     public void Removing_an_error_response_is_informational_GW045()
     {
         var before = TestSpec.Operation("get", "/x", "\"responses\": { \"200\": { \"description\": \"d\" }, \"404\": { \"description\": \"d\" } }");
@@ -101,7 +101,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW045");
     }
 
-    [Fact]
+    [Test]
     public void Dropping_a_response_media_type_is_breaking_GW043()
     {
         var before = TestSpec.Operation("get", "/x", """
@@ -117,7 +117,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW043");
     }
 
-    [Fact]
+    [Test]
     public void Status_codes_are_case_insensitive()
     {
         var before = TestSpec.Operation("get", "/x", "\"responses\": { \"4XX\": { \"description\": \"d\" } }");
@@ -126,7 +126,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Responses_are_resolved_through_component_references()
     {
         const string Components = """{ "responses": { "Ok": { "description": "d", "content": { "application/json": { "schema": { "type": "string" } } } } } }""";
@@ -139,7 +139,7 @@ public sealed class BodyResponseAndSecurityRuleTests
 
     // --- Security ------------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Requiring_authentication_on_a_public_operation_is_breaking_GW050()
     {
         var before = TestSpec.Operation("get", "/x");
@@ -149,7 +149,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW050");
     }
 
-    [Fact]
+    [Test]
     public void Making_a_secured_operation_public_is_safe()
     {
         var before = TestSpec.Operation("get", "/x", NoContent + ", \"security\": [ { \"bearer\": [] } ]");
@@ -158,7 +158,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Dropping_one_of_several_security_alternatives_warns_GW051()
     {
         var before = TestSpec.Operation("get", "/x", NoContent + ", \"security\": [ { \"bearer\": [] }, { \"apiKey\": [] } ]");
@@ -167,7 +167,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW051");
     }
 
-    [Fact]
+    [Test]
     public void Replacing_every_security_alternative_is_breaking_GW052()
     {
         var before = TestSpec.Operation("get", "/x", NoContent + ", \"security\": [ { \"apiKey\": [] } ]");
@@ -176,7 +176,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW052");
     }
 
-    [Fact]
+    [Test]
     public void Adding_an_oauth_scope_counts_as_replacing_the_requirement()
     {
         var before = TestSpec.Operation("get", "/x", NoContent + ", \"security\": [ { \"oauth\": [ \"read\" ] } ]");
@@ -185,7 +185,7 @@ public sealed class BodyResponseAndSecurityRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW052");
     }
 
-    [Fact]
+    [Test]
     public void Global_security_is_inherited_and_an_empty_operation_list_overrides_it()
     {
         var global = "\"security\": [ { \"bearer\": [] } ],";

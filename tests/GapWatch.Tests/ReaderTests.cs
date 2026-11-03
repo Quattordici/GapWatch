@@ -7,7 +7,7 @@ namespace GapWatch.Tests;
 
 public sealed class ReaderTests
 {
-    [Fact]
+    [Test]
     public void Swagger_2_documents_are_rejected_with_a_helpful_message()
     {
         var ex = Should.Throw<ContractReadException>(() => TestSpec.Parse("""{ "swagger": "2.0", "paths": {} }"""));
@@ -15,19 +15,19 @@ public sealed class ReaderTests
         ex.Message.ShouldContain("Swagger 2.0");
     }
 
-    [Fact]
+    [Test]
     public void Documents_without_an_openapi_version_are_rejected()
     {
         Should.Throw<ContractReadException>(() => TestSpec.Parse("""{ "paths": {} }"""));
     }
 
-    [Fact]
+    [Test]
     public void Invalid_json_is_reported_as_a_read_error()
     {
         Should.Throw<ContractReadException>(() => TestSpec.Parse("{ not json"));
     }
 
-    [Fact]
+    [Test]
     public void External_references_are_rejected_with_a_helpful_message()
     {
         var doc = TestSpec.Response("""{ "$ref": "other.json#/components/schemas/Pet" }""");
@@ -37,7 +37,7 @@ public sealed class ReaderTests
         ex.Message.ShouldContain("local references");
     }
 
-    [Fact]
+    [Test]
     public void Unresolvable_references_are_reported()
     {
         var doc = TestSpec.Response("""{ "$ref": "#/components/schemas/Missing" }""");
@@ -45,7 +45,7 @@ public sealed class ReaderTests
         Should.Throw<ContractReadException>(() => TestSpec.Parse(doc));
     }
 
-    [Fact]
+    [Test]
     public void Title_version_and_operations_are_read()
     {
         var contract = TestSpec.Parse(TestSpec.Operation("get", "/pets", "\"operationId\": \"listPets\", \"responses\": { \"204\": { \"description\": \"d\" } }"));
@@ -57,7 +57,7 @@ public sealed class ReaderTests
         operation.OperationId.ShouldBe("listPets");
     }
 
-    [Fact]
+    [Test]
     public void AllOf_merges_properties_and_applies_required_from_the_composing_schema()
     {
         const string Components = """
@@ -77,7 +77,7 @@ public sealed class ReaderTests
         schema.Properties["name"].Required.ShouldBeTrue();
     }
 
-    [Fact]
+    [Test]
     public void Type_arrays_with_null_mean_nullable_in_openapi_3_1()
     {
         var contract = TestSpec.Parse(TestSpec.Response("""{ "type": [ "string", "null" ] }"""));
@@ -87,7 +87,7 @@ public sealed class ReaderTests
         schema.Nullable.ShouldBeTrue();
     }
 
-    [Fact]
+    [Test]
     public void AnyOf_with_a_null_alternative_collapses_to_a_nullable_schema()
     {
         var contract = TestSpec.Parse(TestSpec.Response("""{ "anyOf": [ { "type": "string" }, { "type": "null" } ] }"""));
@@ -98,7 +98,7 @@ public sealed class ReaderTests
         schema.Variants.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Missing_type_is_inferred_from_properties_and_items()
     {
         var obj = TestSpec.Parse(TestSpec.Response("""{ "properties": { "a": { "type": "string" } } }"""));
@@ -108,7 +108,7 @@ public sealed class ReaderTests
         string.Join(",", arr.Operations.Single().Responses.Single().Content["application/json"].Types).ShouldBe("array");
     }
 
-    [Fact]
+    [Test]
     public void Path_level_parameters_are_merged_and_overridden_by_operation_level_ones()
     {
         var doc = TestSpec.Document("""
@@ -126,7 +126,7 @@ public sealed class ReaderTests
         parameters.Single(p => p.Name == "page").Required.ShouldBeFalse();
     }
 
-    [Fact]
+    [Test]
     public void Path_parameters_are_always_required()
     {
         var doc = TestSpec.Parameter("id", "path", """{ "type": "integer" }""");
@@ -134,7 +134,7 @@ public sealed class ReaderTests
         TestSpec.Parse(doc).Operations.Single().Parameters.Single().Required.ShouldBeTrue();
     }
 
-    [Fact]
+    [Test]
     public void Specification_extensions_next_to_paths_are_ignored()
     {
         var doc = TestSpec.Document("""{ "x-internal": { "ignored": true }, "/x": { "get": { "responses": { "204": { "description": "d" } } } } }""");
@@ -142,7 +142,7 @@ public sealed class ReaderTests
         TestSpec.Parse(doc).Operations.Count.ShouldBe(1);
     }
 
-    [Fact]
+    [Test]
     public void Shared_component_schemas_are_expanded_once_and_reused_without_changing_results()
     {
         // The same component is referenced many times; the cache must not leak state between uses.
@@ -162,7 +162,7 @@ public sealed class ReaderTests
         schema.Properties["c"].Schema.Items!.Properties["v"].Required.ShouldBeTrue();
     }
 
-    [Fact]
+    [Test]
     public void The_loader_explains_that_yaml_is_not_supported_yet()
     {
         var path = Path.Combine(Path.GetTempPath(), $"gapwatch-{Guid.NewGuid():N}.yaml");
@@ -179,7 +179,7 @@ public sealed class ReaderTests
         }
     }
 
-    [Fact]
+    [Test]
     public void The_loader_reports_missing_files()
     {
         var ex = Should.Throw<ContractReadException>(() => ContractLoader.Load("/definitely/not/here.json"));

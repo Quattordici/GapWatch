@@ -3,6 +3,7 @@ using System.Text;
 using GapWatch.Core;
 using GapWatch.Core.Comparison;
 using GapWatch.Core.Findings;
+using GapWatch.Core.Policy;
 using GapWatch.OpenApi;
 using GapWatch.Reporting;
 
@@ -33,10 +34,12 @@ public static class GapWatchCli
           gapwatch --version | --help
 
         compare options:
-          --format <console|markdown>     Output format (default: console).
+          --format <console|markdown|sarif|junit>
+                                          Output format (default: console).
           --output <file>                 Write the report to a file instead of stdout.
           --fail-on <breaking|warning|none>
                                           Lowest severity that makes the exit code 1 (default: breaking).
+          --config <file>                 gapwatch.json with severity overrides and suppressions.
 
         Inputs are OpenAPI 3.x documents in JSON. <base> is what consumers rely on today,
         <head> is the proposed change.
@@ -75,6 +78,10 @@ public static class GapWatchCli
         {
             return Fail(error, ex.Message);
         }
+        catch (ConfigurationException ex)
+        {
+            return Fail(error, ex.Message);
+        }
         catch (UsageException ex)
         {
             return Fail(error, ex.Message);
@@ -91,7 +98,7 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
@@ -100,21 +107,32 @@ public static class GapWatchCli
         var format = options.Format();
         var failOn = options.FailOn();
 
+        var policy = options.Values.TryGetValue("--config", out var configPath)
+            ? ConfigFile.Load(configPath)
+            : CompatibilityPolicy.Default;
+
         var baselinePath = options.Positional[0];
         var headPath = options.Positional[1];
 
         var baseline = ContractLoader.Load(baselinePath);
         var head = ContractLoader.Load(headPath);
-        var result = new ContractComparer().Compare(baseline, head);
+        var result = policy.Apply(new ContractComparer().Compare(baseline, head));
 
-        IReportRenderer renderer = format == "markdown" ? new MarkdownReportRenderer() : new ConsoleReportRenderer();
-        var report = renderer.Render(result, new ReportContext(baselinePath, headPath));
+        IReportRenderer renderer = format switch
+        {
+            "markdown" => new MarkdownReportRenderer(),
+            "sarif" => new SarifReportRenderer(),
+            "junit" => new JUnitReportRenderer(),
+            _ => new ConsoleReportRenderer(),
+        };
+        var context = new ReportContext(baselinePath, headPath) { ToolVersion = ToolVersion(), FailOn = failOn };
+        var report = renderer.Render(result, context);
 
         if (options.Values.TryGetValue("--output", out var outputPath))
         {
             File.WriteAllText(outputPath, report, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
             output.WriteLine(
-                $"Report written to {outputPath} ({result.Count(Severity.Breaking)} breaking, {result.Count(Severity.Warning)} warning(s), {result.Count(Severity.Info)} info).");
+                $"Report written to {outputPath} ({result.Count(Severity.Breaking)} breaking, {result.Count(Severity.Warning)} warning(s), {result.Count(Severity.Info)} info, {result.Suppressed.Count} suppressed).");
         }
         else
         {
@@ -134,7 +152,13 @@ public static class GapWatchCli
             throw new UsageException("rules takes no positional arguments.");
         }
 
-        output.Write(options.Format() == "markdown" ? RuleListRenderer.RenderMarkdown() : RuleListRenderer.RenderConsole());
+        var format = options.Format();
+        if (format is not ("console" or "markdown"))
+        {
+            throw new UsageException($"rules supports 'console' and 'markdown', not '{format}'.");
+        }
+
+        output.Write(format == "markdown" ? RuleListRenderer.RenderMarkdown() : RuleListRenderer.RenderConsole());
         return ExitCodes.Success;
     }
 
@@ -146,11 +170,13 @@ public static class GapWatchCli
 
     private static int PrintVersion(TextWriter output)
     {
-        var version = typeof(GapWatchCli).Assembly
-            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0";
-        output.WriteLine(version.Split('+')[0]);
+        output.WriteLine(ToolVersion());
         return ExitCodes.Success;
     }
+
+    private static string ToolVersion() =>
+        (typeof(GapWatchCli).Assembly
+            .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion ?? "0.0.0").Split('+')[0];
 
     private static int Fail(TextWriter error, string message)
     {
@@ -212,9 +238,9 @@ public static class GapWatchCli
         public string Format()
         {
             var format = Values.GetValueOrDefault("--format", "console").ToLowerInvariant();
-            return format is "console" or "markdown"
+            return format is "console" or "markdown" or "sarif" or "junit"
                 ? format
-                : throw new UsageException($"Unknown format '{format}'. Use 'console' or 'markdown'.");
+                : throw new UsageException($"Unknown format '{format}'. Use 'console', 'markdown', 'sarif' or 'junit'.");
         }
 
         /// <summary>Returns the threshold, or <c>null</c> when failing is disabled.</summary>

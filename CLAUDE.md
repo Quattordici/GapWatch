@@ -5,12 +5,13 @@ GapWatch detects breaking changes between two versions of an HTTP API contract. 
 ## Stack and conventions
 
 - C#, .NET 10, nullable enabled, warnings as errors, central package management (`Directory.Packages.props`).
-- Tests: xunit v3 and Shouldly. Keep assertions simple (`ShouldBe`, `ShouldContain`, `ShouldBeEmpty`, `ShouldHaveSingleItem`, `Should.Throw`); compare collections as joined strings.
+- Tests: TUnit (`TUnit.Core` + `TUnit.Engine`, on Microsoft Testing Platform), `TUnit.Mocks` for test doubles, Shouldly for assertions. Do not add the `TUnit` meta-package or `TUnit.Assertions`; Shouldly is the only assertion library. TUnit runs tests in parallel by default, so tests must not share mutable state (use `[NotInParallel]` only when unavoidable). Keep assertions simple (`ShouldBe`, `ShouldContain`, `ShouldBeEmpty`, `ShouldHaveSingleItem`, `Should.Throw`); compare collections as joined strings.
 - Prefer small, pure, well-tested core libraries. `GapWatch.Core` has no I/O and no package dependencies; keep it that way.
 
 ## Architecture rules
 
 - Every source format compiles into the normalized `ApiContract`. Rules only see that model. Never let reader-specific types leak into `GapWatch.Core`.
+- Configuration (severity overrides, disabled rules, justified suppressions) is applied **after** comparison by `CompatibilityPolicy.Apply`. Rules never read configuration. Reading `gapwatch.json` lives in `GapWatch.Cli` (`ConfigFile`).
 - Comparison is **direction-aware** (`Direction.Request` vs `Direction.Response`). Every new rule must state which direction it applies to and why.
 - Rule ids (`GWnnn`) are public and permanent: never renumber, reuse or change the meaning of one. Add new ids at the end of their group, and update the count in `RuleCatalogTests`.
 - `GapWatchCli.Run` stays free of `Console` so it remains testable. Exit codes (0, 1, 2) are a public contract.

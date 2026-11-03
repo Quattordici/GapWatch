@@ -9,7 +9,7 @@ public sealed class OperationAndParameterRuleTests
 
     // --- Operations -------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Identical_contracts_have_no_findings()
     {
         var doc = TestSpec.Response(Str);
@@ -17,7 +17,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(doc, doc).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Removing_an_operation_is_breaking_GW001()
     {
         var before = TestSpec.Operation("get", "/pets");
@@ -26,7 +26,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW001,GW003");
     }
 
-    [Fact]
+    [Test]
     public void Adding_an_operation_is_informational_GW003()
     {
         var before = TestSpec.Operation("get", "/pets");
@@ -39,7 +39,7 @@ public sealed class OperationAndParameterRuleTests
         result.Findings.ShouldHaveSingleItem().Operation.ShouldBe("POST /pets");
     }
 
-    [Fact]
+    [Test]
     public void Deprecating_an_operation_is_informational_GW002()
     {
         var before = TestSpec.Operation("get", "/pets", "\"responses\": { \"204\": { \"description\": \"d\" } }");
@@ -48,7 +48,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW002");
     }
 
-    [Fact]
+    [Test]
     public void Changing_the_operationId_warns_GW004()
     {
         var before = TestSpec.Operation("get", "/pets", "\"operationId\": \"listPets\", \"responses\": { \"204\": { \"description\": \"d\" } }");
@@ -57,7 +57,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW004");
     }
 
-    [Fact]
+    [Test]
     public void Renaming_a_path_parameter_is_not_a_change()
     {
         var before = TestSpec.Document(
@@ -68,7 +68,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Changing_a_path_parameter_type_is_still_detected_after_a_rename()
     {
         var before = TestSpec.Document(
@@ -81,7 +81,7 @@ public sealed class OperationAndParameterRuleTests
 
     // --- Parameters -------------------------------------------------------------------------------------------
 
-    [Fact]
+    [Test]
     public void Adding_a_required_parameter_is_breaking_GW010()
     {
         var before = TestSpec.Operation("get", "/x");
@@ -90,7 +90,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW010");
     }
 
-    [Fact]
+    [Test]
     public void Adding_an_optional_parameter_is_safe()
     {
         var before = TestSpec.Operation("get", "/x");
@@ -99,7 +99,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Making_a_parameter_required_is_breaking_GW011()
     {
         var before = TestSpec.Parameter("region", "query", Str);
@@ -108,7 +108,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW011");
     }
 
-    [Fact]
+    [Test]
     public void Removing_a_parameter_warns_GW012()
     {
         var before = TestSpec.Parameter("region", "query", Str);
@@ -117,7 +117,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW012");
     }
 
-    [Fact]
+    [Test]
     public void Changing_a_parameter_type_is_breaking_GW020()
     {
         var before = TestSpec.Parameter("limit", "query", Str);
@@ -126,7 +126,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).RuleIds().ShouldBe("GW020");
     }
 
-    [Fact]
+    [Test]
     public void Widening_a_parameter_integer_to_number_is_safe()
     {
         var before = TestSpec.Parameter("limit", "query", Int);
@@ -135,7 +135,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Header_parameter_names_are_case_insensitive()
     {
         var before = TestSpec.Parameter("X-Request-Id", "header", Str);
@@ -144,7 +144,7 @@ public sealed class OperationAndParameterRuleTests
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
     }
 
-    [Fact]
+    [Test]
     public void Parameter_findings_point_at_the_parameter()
     {
         var before = TestSpec.Parameter("limit", "query", Str);

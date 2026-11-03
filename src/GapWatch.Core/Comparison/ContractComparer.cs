@@ -43,15 +43,7 @@ public sealed class ContractComparer
             }
         }
 
-        var ordered = findings
-            .OrderByDescending(f => f.Severity)
-            .ThenBy(f => f.Operation, StringComparer.Ordinal)
-            .ThenBy(f => f.Location, StringComparer.Ordinal)
-            .ThenBy(f => f.Rule.Id, StringComparer.Ordinal)
-            .ThenBy(f => f.Message, StringComparer.Ordinal)
-            .ToList();
-
-        return new ComparisonResult(ordered);
+        return new ComparisonResult(FindingOrder.Sort(findings));
     }
 
     private static Dictionary<string, OperationContract> Index(ApiContract contract)

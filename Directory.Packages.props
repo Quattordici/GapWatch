@@ -2,14 +2,11 @@
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
-    <!--
-      Versions are floating ("*") only because this scaffold was generated without NuGet access.
-      After the first successful restore, pin them to the resolved versions (see README, "First run").
-    -->
-    <CentralPackageFloatingVersionsEnabled>true</CentralPackageFloatingVersionsEnabled>
   </PropertyGroup>
   <ItemGroup>
-    <PackageVersion Include="xunit.v3" Version="*" />
-    <PackageVersion Include="Shouldly" Version="*" />
+    <PackageVersion Include="TUnit.Core" Version="1.78.0" />
+    <PackageVersion Include="TUnit.Engine" Version="1.78.0" />
+    <PackageVersion Include="TUnit.Mocks" Version="1.78.0" />
+    <PackageVersion Include="Shouldly" Version="4.3.0" />
   </ItemGroup>
 </Project>
