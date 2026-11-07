@@ -4,7 +4,8 @@
     <ProjectReference Include="..\GapWatch.Core\GapWatch.Core.csproj" />
   </ItemGroup>
 
-  <PropertyGroup>
-  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="YamlDotNet" />
+  </ItemGroup>
 
 </Project>

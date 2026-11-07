@@ -41,7 +41,7 @@ public static class GapWatchCli
                                           Lowest severity that makes the exit code 1 (default: breaking).
           --config <file>                 gapwatch.json with severity overrides and suppressions.
 
-        Inputs are OpenAPI 3.x documents in JSON. <base> is what consumers rely on today,
+        Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change.
 
         Exit codes:
