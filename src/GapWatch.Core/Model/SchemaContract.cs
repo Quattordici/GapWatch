@@ -38,6 +38,12 @@ public sealed record SchemaContract
 
     /// <summary>True when this node stands in for a schema that is already being expanded higher up (a cycle).</summary>
     public bool IsRecursiveReference { get; init; }
+
+    /// <summary>
+    /// Where the schema is defined in the source document: for a <c>$ref</c>, the referenced definition. Not part of
+    /// the compared contract.
+    /// </summary>
+    public SourcePosition? Position { get; init; }
 }
 
 /// <summary>An object property together with the flags that matter for compatibility.</summary>
@@ -45,4 +51,8 @@ public sealed record SchemaContract
 /// <param name="Required">Listed in the parent's <c>required</c> array.</param>
 /// <param name="ReadOnly">Only ever sent by the server (never part of requests).</param>
 /// <param name="WriteOnly">Only ever sent by the client (never part of responses).</param>
-public sealed record PropertyContract(SchemaContract Schema, bool Required, bool ReadOnly, bool WriteOnly);
+public sealed record PropertyContract(SchemaContract Schema, bool Required, bool ReadOnly, bool WriteOnly)
+{
+    /// <summary>Where the property name is declared, which differs from the schema's position when it is a <c>$ref</c>.</summary>
+    public SourcePosition? Position { get; init; }
+}

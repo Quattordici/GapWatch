@@ -12,21 +12,32 @@ public sealed class OpenApiJsonReader : IContractReader
 {
     public bool CanRead(string fileName) => fileName.EndsWith(".json", StringComparison.OrdinalIgnoreCase);
 
+    private static readonly JsonDocumentOptions DocumentOptions = new()
+    {
+        AllowTrailingCommas = true,
+        CommentHandling = JsonCommentHandling.Skip,
+    };
+
+    /// <summary>Reads the contract and records where each element is declared (<see cref="SourcePosition"/>).</summary>
     public ApiContract Read(Stream stream)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
+        using var buffer = new MemoryStream();
+        stream.CopyTo(buffer);
+        var utf8 = buffer.GetBuffer().AsMemory(0, (int)buffer.Length);
+        if (utf8.Span.StartsWith("\uFEFF"u8))
+        {
+            utf8 = utf8[3..];
+        }
+
         try
         {
-            using var document = JsonDocument.Parse(
-                stream,
-                new JsonDocumentOptions
-                {
-                    AllowTrailingCommas = true,
-                    CommentHandling = JsonCommentHandling.Skip,
-                });
-
-            return new Builder(document.RootElement).Build();
+            using var document = JsonDocument.Parse(utf8, DocumentOptions);
+            var positions = DocumentPositions.FromJson(
+                utf8,
+                new JsonReaderOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip });
+            return Read(document.RootElement, positions);
         }
         catch (JsonException ex)
         {
@@ -34,7 +45,10 @@ public sealed class OpenApiJsonReader : IContractReader
         }
     }
 
-    private sealed class Builder(JsonElement root)
+    /// <summary>Builds the contract from an already parsed document, taking positions from <paramref name="positions"/>.</summary>
+    internal static ApiContract Read(JsonElement root, DocumentPositions positions) => new Builder(root, positions).Build();
+
+    private sealed class Builder(JsonElement root, DocumentPositions positions)
     {
         private static readonly string[] Methods = ["get", "put", "post", "delete", "options", "head", "patch", "trace"];
 
@@ -79,17 +93,21 @@ public sealed class OpenApiJsonReader : IContractReader
                         continue; // specification extensions such as x-...
                     }
 
-                    var item = Resolve(path.Value);
-                    if (item.ValueKind != JsonValueKind.Object)
+                    var item = Resolve(path.Value, DocumentPositions.Child("/paths", path.Name));
+                    if (item.Element.ValueKind != JsonValueKind.Object)
                     {
                         continue;
                     }
 
                     foreach (var method in Methods)
                     {
-                        if (item.TryGetProperty(method, out var operation) && operation.ValueKind == JsonValueKind.Object)
+                        if (item.Element.TryGetProperty(method, out var operation) && operation.ValueKind == JsonValueKind.Object)
                         {
-                            operations.Add(ReadOperation(method.ToUpperInvariant(), path.Name, item, operation));
+                            operations.Add(ReadOperation(
+                                method.ToUpperInvariant(),
+                                path.Name,
+                                item,
+                                new Located(operation, DocumentPositions.Child(item.Pointer, method))));
                         }
                     }
                 }
@@ -98,22 +116,26 @@ public sealed class OpenApiJsonReader : IContractReader
             return new ApiContract(title, apiVersion, operations);
         }
 
-        private OperationContract ReadOperation(string method, string path, JsonElement item, JsonElement operation)
+        private OperationContract ReadOperation(string method, string path, Located item, Located operation)
         {
             RequestBodyContract? body = null;
-            if (operation.TryGetProperty("requestBody", out var bodyElement))
+            if (operation.Element.TryGetProperty("requestBody", out var bodyElement))
             {
-                var resolved = Resolve(bodyElement);
-                if (resolved.ValueKind == JsonValueKind.Object)
+                var resolved = Resolve(bodyElement, DocumentPositions.Child(operation.Pointer, "requestBody"));
+                if (resolved.Element.ValueKind == JsonValueKind.Object)
                 {
-                    body = new RequestBodyContract(GetBool(resolved, "required"), ReadContent(resolved));
+                    body = new RequestBodyContract(GetBool(resolved.Element, "required"), ReadContent(resolved))
+                    {
+                        Position = positions[resolved.Pointer],
+                    };
                 }
             }
 
             var responses = new List<ResponseContract>();
-            if (operation.TryGetProperty("responses", out var responsesElement)
+            if (operation.Element.TryGetProperty("responses", out var responsesElement)
                 && responsesElement.ValueKind == JsonValueKind.Object)
             {
+                var responsesPointer = DocumentPositions.Child(operation.Pointer, "responses");
                 foreach (var response in responsesElement.EnumerateObject())
                 {
                     if (response.Name.StartsWith("x-", StringComparison.OrdinalIgnoreCase))
@@ -121,73 +143,86 @@ public sealed class OpenApiJsonReader : IContractReader
                         continue;
                     }
 
-                    var resolved = Resolve(response.Value);
-                    var content = resolved.ValueKind == JsonValueKind.Object
+                    var resolved = Resolve(response.Value, DocumentPositions.Child(responsesPointer, response.Name));
+                    var content = resolved.Element.ValueKind == JsonValueKind.Object
                         ? ReadContent(resolved)
                         : new Dictionary<string, SchemaContract>();
-                    responses.Add(new ResponseContract(response.Name.ToUpperInvariant(), content));
+                    responses.Add(new ResponseContract(response.Name.ToUpperInvariant(), content)
+                    {
+                        Position = positions[resolved.Pointer],
+                    });
                 }
             }
 
             return new OperationContract(
                 method,
                 path,
-                GetString(operation, "operationId"),
-                GetBool(operation, "deprecated"),
+                GetString(operation.Element, "operationId"),
+                GetBool(operation.Element, "deprecated"),
                 ReadParameters(item, operation),
                 body,
                 responses,
-                ReadSecurity(operation));
+                ReadSecurity(operation.Element))
+            {
+                Position = positions[operation.Pointer],
+            };
         }
 
-        private List<ParameterContract> ReadParameters(JsonElement item, JsonElement operation)
+        private List<ParameterContract> ReadParameters(Located item, Located operation)
         {
             // Operation-level parameters override path-level ones with the same (name, in).
             var merged = new Dictionary<(string Name, string In), ParameterContract>();
 
             foreach (var source in new[] { item, operation })
             {
-                if (!source.TryGetProperty("parameters", out var array) || array.ValueKind != JsonValueKind.Array)
+                if (!source.Element.TryGetProperty("parameters", out var array) || array.ValueKind != JsonValueKind.Array)
                 {
                     continue;
                 }
 
+                var arrayPointer = DocumentPositions.Child(source.Pointer, "parameters");
+                var index = 0;
                 foreach (var element in array.EnumerateArray())
                 {
-                    var parameter = Resolve(element);
-                    var name = GetString(parameter, "name");
-                    var location = GetString(parameter, "in");
+                    var parameter = Resolve(element, DocumentPositions.Child(arrayPointer, index++));
+                    var name = GetString(parameter.Element, "name");
+                    var location = GetString(parameter.Element, "in");
                     if (name is null || location is null)
                     {
                         continue;
                     }
 
-                    var required = location == "path" || GetBool(parameter, "required");
-                    var schema = parameter.TryGetProperty("schema", out var schemaElement)
-                        ? ParseSchema(schemaElement, [])
+                    var required = location == "path" || GetBool(parameter.Element, "required");
+                    var schema = parameter.Element.TryGetProperty("schema", out var schemaElement)
+                        ? ParseSchema(schemaElement, DocumentPositions.Child(parameter.Pointer, "schema"), [])
                         : ReadContent(parameter).Values.FirstOrDefault() ?? SchemaContract.Unspecified;
 
-                    merged[(name, location)] = new ParameterContract(name, location, required, schema);
+                    merged[(name, location)] = new ParameterContract(name, location, required, schema)
+                    {
+                        Position = positions[parameter.Pointer],
+                    };
                 }
             }
 
             return merged.Values.ToList();
         }
 
-        private Dictionary<string, SchemaContract> ReadContent(JsonElement holder)
+        private Dictionary<string, SchemaContract> ReadContent(Located holder)
         {
             var result = new Dictionary<string, SchemaContract>(StringComparer.Ordinal);
-            if (!holder.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Object)
+            if (!holder.Element.TryGetProperty("content", out var content) || content.ValueKind != JsonValueKind.Object)
             {
                 return result;
             }
 
+            var contentPointer = DocumentPositions.Child(holder.Pointer, "content");
             foreach (var media in content.EnumerateObject())
             {
+                var mediaPointer = DocumentPositions.Child(contentPointer, media.Name);
                 var schema = media.Value.ValueKind == JsonValueKind.Object
                              && media.Value.TryGetProperty("schema", out var schemaElement)
-                    ? ParseSchema(schemaElement, [])
-                    : SchemaContract.Unspecified;
+                    ? ParseSchema(schemaElement, DocumentPositions.Child(mediaPointer, "schema"), [])
+                    : SchemaContract.Unspecified with { Position = positions[mediaPointer] };
 
                 result.TryAdd(NormalizeMediaType(media.Name), schema);
             }
@@ -238,16 +273,17 @@ public sealed class OpenApiJsonReader : IContractReader
 
         // --- Schemas ------------------------------------------------------------------------------------------
 
-        private SchemaContract ParseSchema(JsonElement element, HashSet<string> expanding)
+        /// <summary>Parses the schema at <paramref name="pointer"/>; a <c>$ref</c>'d schema keeps its definition's position.</summary>
+        private SchemaContract ParseSchema(JsonElement element, string pointer, HashSet<string> expanding)
         {
             if (element.ValueKind != JsonValueKind.Object)
             {
-                return SchemaContract.Unspecified;
+                return SchemaContract.Unspecified with { Position = positions[pointer] };
             }
 
             if (!element.TryGetProperty("$ref", out var referenceElement) || referenceElement.ValueKind != JsonValueKind.String)
             {
-                return ParseSchemaBody(element, expanding);
+                return ParseSchemaBody(element, pointer, expanding);
             }
 
             var reference = referenceElement.GetString()!;
@@ -255,19 +291,20 @@ public sealed class OpenApiJsonReader : IContractReader
 
             if (_cache.TryGetValue(reference, out var cached))
             {
-                return WithSiblings(cached with { ReferenceName = name }, element, expanding);
+                return WithSiblings(cached with { ReferenceName = name }, element, pointer, expanding);
             }
 
             if (!expanding.Add(reference))
             {
                 _recursiveLeaves++;
-                return new SchemaContract { ReferenceName = name, IsRecursiveReference = true };
+                return new SchemaContract { ReferenceName = name, IsRecursiveReference = true, Position = positions[pointer] };
             }
 
             try
             {
                 var leavesBefore = _recursiveLeaves;
-                var parsed = ParseSchema(FollowPointer(reference), expanding) with { ReferenceName = name };
+                var target = FollowPointer(reference);
+                var parsed = ParseSchema(target.Element, target.Pointer, expanding) with { ReferenceName = name };
 
                 // A subtree that never hit a cycle does not depend on where it was reached from, so it can be reused.
                 if (_recursiveLeaves == leavesBefore)
@@ -275,7 +312,7 @@ public sealed class OpenApiJsonReader : IContractReader
                     _cache[reference] = parsed;
                 }
 
-                return WithSiblings(parsed, element, expanding);
+                return WithSiblings(parsed, element, pointer, expanding);
             }
             finally
             {
@@ -284,12 +321,12 @@ public sealed class OpenApiJsonReader : IContractReader
         }
 
         /// <summary>OpenAPI 3.1 allows keywords next to <c>$ref</c>; merge them in when present.</summary>
-        private SchemaContract WithSiblings(SchemaContract resolved, JsonElement element, HashSet<string> expanding) =>
+        private SchemaContract WithSiblings(SchemaContract resolved, JsonElement element, string pointer, HashSet<string> expanding) =>
             element.EnumerateObject().Any(p => SchemaKeywords.Contains(p.Name))
-                ? Merge(ParseSchemaBody(element, expanding), resolved)
+                ? Merge(ParseSchemaBody(element, pointer, expanding), resolved)
                 : resolved;
 
-        private SchemaContract ParseSchemaBody(JsonElement element, HashSet<string> expanding)
+        private SchemaContract ParseSchemaBody(JsonElement element, string pointer, HashSet<string> expanding)
         {
             var types = new SortedSet<string>(StringComparer.Ordinal);
             var nullable = GetBool(element, "nullable");
@@ -321,20 +358,25 @@ public sealed class OpenApiJsonReader : IContractReader
             var properties = new Dictionary<string, PropertyContract>(StringComparer.Ordinal);
             if (element.TryGetProperty("properties", out var propertiesElement) && propertiesElement.ValueKind == JsonValueKind.Object)
             {
+                var propertiesPointer = DocumentPositions.Child(pointer, "properties");
                 foreach (var property in propertiesElement.EnumerateObject())
                 {
+                    var propertyPointer = DocumentPositions.Child(propertiesPointer, property.Name);
                     properties[property.Name] = new PropertyContract(
-                        ParseSchema(property.Value, expanding),
+                        ParseSchema(property.Value, propertyPointer, expanding),
                         required.Contains(property.Name),
                         HasFlag(property.Value, "readOnly"),
-                        HasFlag(property.Value, "writeOnly"));
+                        HasFlag(property.Value, "writeOnly"))
+                    {
+                        Position = positions[propertyPointer],
+                    };
                 }
             }
 
             SchemaContract? items = null;
             if (element.TryGetProperty("items", out var itemsElement) && itemsElement.ValueKind == JsonValueKind.Object)
             {
-                items = ParseSchema(itemsElement, expanding);
+                items = ParseSchema(itemsElement, DocumentPositions.Child(pointer, "items"), expanding);
             }
 
             if (types.Count == 0 && properties.Count > 0)
@@ -355,15 +397,18 @@ public sealed class OpenApiJsonReader : IContractReader
                     continue;
                 }
 
+                var alternativesPointer = DocumentPositions.Child(pointer, keyword);
+                var index = 0;
                 foreach (var alternative in alternatives.EnumerateArray())
                 {
+                    var alternativePointer = DocumentPositions.Child(alternativesPointer, index++);
                     if (IsNullSchema(alternative))
                     {
                         nullable = true; // OpenAPI 3.1: anyOf: [X, {type: null}] means "X or null"
                     }
                     else
                     {
-                        variants.Add(ParseSchema(alternative, expanding));
+                        variants.Add(ParseSchema(alternative, alternativePointer, expanding));
                     }
                 }
             }
@@ -377,6 +422,7 @@ public sealed class OpenApiJsonReader : IContractReader
                 Properties = properties,
                 Items = items,
                 Variants = variants,
+                Position = positions[pointer],
             };
 
             // A lone alternative with nothing else around it is just that schema (possibly nullable).
@@ -388,9 +434,11 @@ public sealed class OpenApiJsonReader : IContractReader
 
             if (element.TryGetProperty("allOf", out var allOf) && allOf.ValueKind == JsonValueKind.Array)
             {
+                var allOfPointer = DocumentPositions.Child(pointer, "allOf");
+                var index = 0;
                 foreach (var part in allOf.EnumerateArray())
                 {
-                    own = Merge(own, ParseSchema(part, expanding));
+                    own = Merge(own, ParseSchema(part, DocumentPositions.Child(allOfPointer, index++), expanding));
                 }
 
                 // 'required' may name properties that were contributed by an allOf part.
@@ -451,6 +499,9 @@ public sealed class OpenApiJsonReader : IContractReader
                         existing.Required || property.Required,
                         existing.ReadOnly || property.ReadOnly,
                         existing.WriteOnly || property.WriteOnly)
+                    {
+                        Position = existing.Position ?? property.Position,
+                    }
                     : property;
             }
 
@@ -464,6 +515,7 @@ public sealed class OpenApiJsonReader : IContractReader
                 Items = a.Items is not null && b.Items is not null ? Merge(a.Items, b.Items) : a.Items ?? b.Items,
                 Variants = [.. a.Variants, .. b.Variants],
                 ReferenceName = a.ReferenceName ?? b.ReferenceName,
+                Position = a.Position ?? b.Position,
             };
         }
 
@@ -503,24 +555,25 @@ public sealed class OpenApiJsonReader : IContractReader
         // --- References and helpers -----------------------------------------------------------------------------
 
         /// <summary>Follows a (possibly chained) <c>$ref</c> and returns the final non-reference element.</summary>
-        private JsonElement Resolve(JsonElement element)
+        private Located Resolve(JsonElement element, string pointer)
         {
+            var current = new Located(element, pointer);
             for (var hops = 0; hops < 32; hops++)
             {
-                if (element.ValueKind != JsonValueKind.Object
-                    || !element.TryGetProperty("$ref", out var reference)
+                if (current.Element.ValueKind != JsonValueKind.Object
+                    || !current.Element.TryGetProperty("$ref", out var reference)
                     || reference.ValueKind != JsonValueKind.String)
                 {
-                    return element;
+                    return current;
                 }
 
-                element = FollowPointer(reference.GetString()!);
+                current = FollowPointer(reference.GetString()!);
             }
 
             throw new ContractReadException("Too many chained $ref hops; the document probably contains a reference cycle.");
         }
 
-        private JsonElement FollowPointer(string reference)
+        private Located FollowPointer(string reference)
         {
             if (!reference.StartsWith("#/", StringComparison.Ordinal))
             {
@@ -529,6 +582,7 @@ public sealed class OpenApiJsonReader : IContractReader
             }
 
             var current = root;
+            var pointer = string.Empty;
             foreach (var raw in reference[2..].Split('/'))
             {
                 var segment = Uri.UnescapeDataString(raw).Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal);
@@ -539,9 +593,10 @@ public sealed class OpenApiJsonReader : IContractReader
                 }
 
                 current = next;
+                pointer = DocumentPositions.Child(pointer, segment);
             }
 
-            return current;
+            return new Located(current, pointer);
         }
 
         private bool HasFlag(JsonElement element, string flag)
@@ -555,7 +610,7 @@ public sealed class OpenApiJsonReader : IContractReader
 
                 if (element.TryGetProperty("$ref", out var reference) && reference.ValueKind == JsonValueKind.String)
                 {
-                    element = FollowPointer(reference.GetString()!);
+                    element = FollowPointer(reference.GetString()!).Element;
                 }
                 else
                 {
@@ -593,4 +648,7 @@ public sealed class OpenApiJsonReader : IContractReader
             && element.TryGetProperty(property, out var value)
             && value.ValueKind == JsonValueKind.True;
     }
+
+    /// <summary>A JSON element together with its pointer in the document.</summary>
+    private readonly record struct Located(JsonElement Element, string Pointer);
 }

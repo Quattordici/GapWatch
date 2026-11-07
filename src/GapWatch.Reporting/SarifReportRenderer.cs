@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using GapWatch.Core.Findings;
+using GapWatch.Core.Model;
 
 namespace GapWatch.Reporting;
 
@@ -14,9 +15,9 @@ namespace GapWatch.Reporting;
 /// requires.</item>
 /// <item>Severity maps to <c>level</c>: Breaking is <c>error</c>, Warning is <c>warning</c>, Info is <c>note</c>.
 /// <c>defaultConfiguration.level</c> carries the rule's default; <c>result.level</c> the effective (possibly overridden) one.</item>
-/// <item>Every result points at the head document (line 1, column 1, because readers do not track positions yet; GitHub
-/// code scanning requires all four region coordinates) and carries a
-/// logical location (<c>GET /pets</c> plus the location inside it), which is what identifies the change.</item>
+/// <item>Every result points at the head document, at the line and column of the changed element (or its closest
+/// enclosing element that still exists; line 1 for a removed operation). GitHub code scanning requires all four region
+/// coordinates. Each result also carries a logical location (<c>GET /pets</c> plus the location inside it), which is what identifies the change.</item>
 /// <item>Suppressed findings are emitted with <c>suppressions[].kind = "external"</c> and the justification, so viewers
 /// show them as suppressed instead of dropping them. Unused suppressions become tool execution notifications.</item>
 /// <item><c>partialFingerprints</c> hash rule id, operation and location, so a finding keeps its identity across runs
@@ -211,11 +212,13 @@ public sealed class SarifReportRenderer : IReportRenderer
         json.WriteNumber("index", 1);
         json.WriteEndObject();
         json.WriteStartObject("region");
-        // GitHub code scanning requires a complete region; readers do not track positions yet (v0.3).
-        json.WriteNumber("startLine", 1);
-        json.WriteNumber("startColumn", 1);
-        json.WriteNumber("endLine", 1);
-        json.WriteNumber("endColumn", 2);
+        // GitHub code scanning requires a complete region. The position marks the start of the changed element's key;
+        // without one (a removed operation, or a reader without positions) the result is anchored at the first line.
+        var position = finding.Position ?? new SourcePosition(1, 1);
+        json.WriteNumber("startLine", position.Line);
+        json.WriteNumber("startColumn", position.Column);
+        json.WriteNumber("endLine", position.Line);
+        json.WriteNumber("endColumn", position.Column + 1);
         json.WriteEndObject();
         json.WriteEndObject();
         json.WriteStartArray("logicalLocations");

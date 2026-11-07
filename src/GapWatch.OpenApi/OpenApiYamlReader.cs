@@ -32,20 +32,25 @@ public sealed partial class OpenApiYamlReader : IContractReader
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        var json = ToJson(stream);
+        var positions = new DocumentPositions();
+        var json = ToJson(stream, positions);
         using var buffer = new MemoryStream();
         using (var writer = new Utf8JsonWriter(buffer))
         {
             json.WriteTo(writer);
         }
 
-        buffer.Position = 0;
-        return new OpenApiJsonReader().Read(buffer);
+        // Positions come from the YAML text, not from the intermediate JSON.
+        using var document = JsonDocument.Parse(buffer.GetBuffer().AsMemory(0, (int)buffer.Length));
+        return OpenApiJsonReader.Read(document.RootElement, positions);
     }
 
     /// <summary>Parses a single YAML document into the JSON tree it denotes.</summary>
     /// <exception cref="ContractReadException">The YAML is invalid or uses features OpenAPI does not allow.</exception>
-    public static JsonNode ToJson(Stream stream)
+    public static JsonNode ToJson(Stream stream) => ToJson(stream, positions: null);
+
+    /// <summary>As <see cref="ToJson(Stream)"/>, also recording where each member and item is declared.</summary>
+    internal static JsonNode ToJson(Stream stream, DocumentPositions? positions)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
@@ -71,11 +76,13 @@ public sealed partial class OpenApiYamlReader : IContractReader
                 $"Expected exactly one YAML document, found {yaml.Documents.Count}. Split multi-document files first.");
         }
 
-        return Convert(yaml.Documents[0].RootNode, depth: 0)
+        var root = yaml.Documents[0].RootNode;
+        positions?.Add(string.Empty, Position(root.Start));
+        return Convert(root, string.Empty, positions, depth: 0)
                ?? throw new ContractReadException("The YAML document is empty.");
     }
 
-    private static JsonNode? Convert(YamlNode node, int depth)
+    private static JsonNode? Convert(YamlNode node, string pointer, DocumentPositions? positions, int depth)
     {
         // Aliases are resolved to the anchored node, so an alias to an ancestor would recurse forever.
         if (depth > MaxDepth)
@@ -106,7 +113,9 @@ public sealed partial class OpenApiYamlReader : IContractReader
                         throw new ContractReadException($"{Position(keyNode)}: duplicate key '{key}'.");
                     }
 
-                    obj[key] = Convert(valueNode, depth + 1);
+                    var member = DocumentPositions.Child(pointer, key);
+                    positions?.Add(member, Position(keyNode.Start));
+                    obj[key] = Convert(valueNode, member, positions, depth + 1);
                 }
 
                 return obj;
@@ -115,7 +124,9 @@ public sealed partial class OpenApiYamlReader : IContractReader
                 var array = new JsonArray();
                 foreach (var item in sequence.Children)
                 {
-                    array.Add(Convert(item, depth + 1));
+                    var itemPointer = DocumentPositions.Child(pointer, array.Count);
+                    positions?.Add(itemPointer, Position(item.Start));
+                    array.Add(Convert(item, itemPointer, positions, depth + 1));
                 }
 
                 return array;
@@ -180,6 +191,8 @@ public sealed partial class OpenApiYamlReader : IContractReader
     }
 
     private static string Position(YamlNode node) => $"Line {node.Start.Line}, column {node.Start.Column}";
+
+    private static SourcePosition Position(Mark mark) => new((int)mark.Line, (int)mark.Column);
 
     [GeneratedRegex(@"^[-+]?[0-9]+$")]
     private static partial Regex DecimalInteger();

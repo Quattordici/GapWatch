@@ -30,6 +30,9 @@ public sealed record OperationContract(
     IReadOnlyList<ResponseContract> Responses,
     IReadOnlyList<string> Security)
 {
+    /// <summary>Where the operation is declared in the source document, when the reader tracks positions.</summary>
+    public SourcePosition? Position { get; init; }
+
     /// <summary>Human-readable identity, e.g. <c>GET /pets/{id}</c>.</summary>
     public string Display => $"{Method} {Path}";
 
@@ -45,13 +48,35 @@ public sealed record OperationContract(
 /// <param name="Location">One of <c>path</c>, <c>query</c>, <c>header</c>, <c>cookie</c>.</param>
 /// <param name="Required">Whether the parameter must be supplied.</param>
 /// <param name="Schema">Value schema.</param>
-public sealed record ParameterContract(string Name, string Location, bool Required, SchemaContract Schema);
+public sealed record ParameterContract(string Name, string Location, bool Required, SchemaContract Schema)
+{
+    /// <summary>Where the parameter is declared in the source document, when the reader tracks positions.</summary>
+    public SourcePosition? Position { get; init; }
+}
 
 /// <summary>A request body: whether it is mandatory and which media types are accepted.</summary>
-public sealed record RequestBodyContract(bool Required, IReadOnlyDictionary<string, SchemaContract> Content);
+public sealed record RequestBodyContract(bool Required, IReadOnlyDictionary<string, SchemaContract> Content)
+{
+    /// <summary>Where the request body is declared in the source document, when the reader tracks positions.</summary>
+    public SourcePosition? Position { get; init; }
+}
 
 /// <summary>A declared response: status code (<c>200</c>, <c>4XX</c>, <c>DEFAULT</c>) and its media types.</summary>
-public sealed record ResponseContract(string StatusCode, IReadOnlyDictionary<string, SchemaContract> Content);
+public sealed record ResponseContract(string StatusCode, IReadOnlyDictionary<string, SchemaContract> Content)
+{
+    /// <summary>Where the response is declared in the source document, when the reader tracks positions.</summary>
+    public SourcePosition? Position { get; init; }
+}
+
+/// <summary>
+/// A place in the document a contract was read from: 1-based line and column (in UTF-16 code units, as editors count).
+/// It is plain data, so any reader can provide it; the file it refers to is known to whoever loaded the document.
+/// </summary>
+public sealed record SourcePosition(int Line, int Column)
+{
+    /// <summary><c>line:column</c>.</summary>
+    public override string ToString() => $"{Line}:{Column}";
+}
 
 /// <summary>Helpers for OpenAPI path templates.</summary>
 public static partial class PathTemplate

@@ -47,6 +47,13 @@ public sealed record Finding(RuleDescriptor Rule, string Operation, string Locat
     /// share. Findings with the same rule, origin and message describe one change seen through several operations.
     /// </summary>
     public SchemaOrigin? Origin { get; init; }
+
+    /// <summary>
+    /// Where the change is in the head document: the changed element, or the closest enclosing element that still
+    /// exists (the schema a property was removed from, the operation a response was removed from). Null when the reader
+    /// does not track positions or nothing of it exists in the head (a removed operation).
+    /// </summary>
+    public Model.SourcePosition? Position { get; init; }
 }
 
 /// <summary>Where inside a shared component schema a change was found.</summary>
