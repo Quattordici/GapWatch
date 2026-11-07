@@ -45,6 +45,7 @@ public sealed class MachineReportTests
         rules.GetArrayLength().ShouldBe(RuleCatalog.All.Count);
         rules[0].GetProperty("id").GetString().ShouldBe("GW001");
         rules[0].GetProperty("defaultConfiguration").GetProperty("level").GetString().ShouldBe("error");
+        rules[0].GetProperty("help").GetProperty("text").GetString()!.ShouldStartWith(RuleCatalog.OperationRemoved.Description);
         Run(root.GetRawText()).GetProperty("results").GetArrayLength().ShouldBe(0);
     }
 
@@ -77,7 +78,9 @@ public sealed class MachineReportTests
         var location = result.GetProperty("locations")[0];
 
         location.GetProperty("physicalLocation").GetProperty("artifactLocation").GetProperty("uri").GetString().ShouldBe("petstore-v2.json");
-        location.GetProperty("physicalLocation").GetProperty("region").GetProperty("startLine").GetInt32().ShouldBe(1);
+        var region = location.GetProperty("physicalLocation").GetProperty("region");
+        $"{region.GetProperty("startLine")}:{region.GetProperty("startColumn")}-{region.GetProperty("endLine")}:{region.GetProperty("endColumn")}"
+            .ShouldBe("1:1-1:2");
         location.GetProperty("logicalLocations")[0].GetProperty("fullyQualifiedName").GetString().ShouldBe("GET /pets > parameter 'q' (query)");
         result.GetProperty("message").GetProperty("text").GetString().ShouldBe("GET /pets: Parameter 'q' (query) was removed.");
     }

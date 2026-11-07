@@ -91,6 +91,10 @@ A change inside a component schema (`#/components/schemas/Pet`) affects every op
 
 Request and response uses of the same schema stay separate, because the same change is judged differently in each direction. Counts, `--fail-on`, suppressions, SARIF and JUnit still work per operation (SARIF results carry `component` and `componentPath` properties). A keyword next to a nested `$ref` (for example `nullable` on `owner`) is attributed to the schema that holds the property (`Pet $.owner`), not to the referenced one.
 
+## Running in CI
+
+[docs/ci-integration.md](docs/ci-integration.md) covers getting the base contract, choosing what fails the build, and publishing the results on GitHub (pull request comment, code scanning) and Azure DevOps (Tests tab, pull request comment, Advanced Security).
+
 ## Configuration
 
 A `gapwatch.json` passed with `--config` changes how findings are judged without touching the rules:
@@ -163,7 +167,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | Version | Scope |
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
-| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs |
+| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
 | v0.3 | Roslyn analysis of contract types and endpoints, findings mapped to source locations |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
