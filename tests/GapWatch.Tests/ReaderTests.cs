@@ -163,15 +163,15 @@ public sealed class ReaderTests
     }
 
     [Test]
-    public void The_loader_explains_that_yaml_is_not_supported_yet()
+    public void The_loader_rejects_unknown_file_types()
     {
-        var path = Path.Combine(Path.GetTempPath(), $"gapwatch-{Guid.NewGuid():N}.yaml");
+        var path = Path.Combine(Path.GetTempPath(), $"gapwatch-{Guid.NewGuid():N}.txt");
         File.WriteAllText(path, "openapi: 3.0.3", Encoding.UTF8);
         try
         {
             var ex = Should.Throw<ContractReadException>(() => ContractLoader.Load(path));
 
-            ex.Message.ShouldContain("YAML");
+            ex.Message.ShouldContain("Supported: .json, .yaml and .yml");
         }
         finally
         {

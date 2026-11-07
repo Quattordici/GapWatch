@@ -9,13 +9,13 @@ GapWatch finds **breaking changes between two versions of an HTTP API contract**
 - **Direction-aware.** The same change is breaking or safe depending on who produces the value. A new enum value in a *response* can break a client's `switch`; in a *request* it is harmless. Removing an enum value is the opposite. GapWatch models this explicitly instead of reporting "something changed".
 - **Explainable.** Every finding carries a stable rule id (`GW025`), the operation, the location inside it (`response 200 application/json: $[].name`) and a complete sentence.
 - **Built for .NET teams.** Understands `readOnly`/`writeOnly`, nullable handling, `int32`→`int64` widening, `operationId` changes that break generated clients, path-parameter renames, and security changes.
-- **Dependency-free core.** The engine and the JSON reader use only the .NET base class library.
+- **Dependency-free core.** The engine, the JSON reader and the reports use only the .NET base class library. The only package dependency is YamlDotNet, for YAML input.
 
 ## Quick start
 
 ```
 dotnet build
-dotnet run --project src/GapWatch.Cli -- compare before.json after.json
+dotnet run --project src/GapWatch.Cli -- compare before.json after.json   # .yaml / .yml work too
 ```
 
 Install as a global tool once packed:
@@ -134,7 +134,7 @@ Every suppression needs a justification. Suppressed findings leave the exit code
 ```
 src/
   GapWatch.Core        Contract model, rule catalog, comparison engine, policy (overrides, suppressions). No I/O, no dependencies.
-  GapWatch.OpenApi     OpenAPI 3.x JSON reader (System.Text.Json) behind IContractReader.
+  GapWatch.OpenApi     OpenAPI 3.x readers behind IContractReader: JSON (System.Text.Json) and YAML (YamlDotNet, converted to JSON first).
   GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
   GapWatch.Cli         The `gapwatch` dotnet tool and the gapwatch.json reader. GapWatchCli.Run is console-free and unit tested.
 tests/
@@ -151,7 +151,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 
 ## Limitations in v0.1
 
-- **JSON only.** OpenAPI documents must be JSON (what ASP.NET Core and Swashbuckle emit). YAML needs the `Microsoft.OpenApi` reader, planned behind the same `IContractReader`.
+- **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
 - **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
@@ -163,7 +163,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | Version | Scope |
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
-| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML via `Microsoft.OpenApi` |
+| v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs |
 | v0.3 | Roslyn analysis of contract types and endpoints, findings mapped to source locations |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |

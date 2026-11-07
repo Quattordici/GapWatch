@@ -6,7 +6,7 @@ namespace GapWatch.OpenApi;
 /// <summary>Picks the right <see cref="IContractReader"/> for a file and loads it.</summary>
 public static class ContractLoader
 {
-    private static readonly IContractReader[] Readers = [new OpenApiJsonReader()];
+    private static readonly IContractReader[] Readers = [new OpenApiJsonReader(), new OpenApiYamlReader()];
 
     /// <summary>Loads and normalizes an API description from disk.</summary>
     /// <exception cref="ContractReadException">The file is missing, unsupported or invalid.</exception>
@@ -33,11 +33,6 @@ public static class ContractLoader
         }
     }
 
-    private static string UnsupportedMessage(string path)
-    {
-        var extension = Path.GetExtension(path).ToLowerInvariant();
-        return extension is ".yaml" or ".yml"
-            ? $"YAML is not supported yet ('{path}'). Use the JSON form of the document (ASP.NET Core and Swashbuckle emit JSON)."
-            : $"Unsupported file type '{extension}' for '{path}'. Supported: .json (OpenAPI 3.x).";
-    }
+    private static string UnsupportedMessage(string path) =>
+        $"Unsupported file type '{Path.GetExtension(path).ToLowerInvariant()}' for '{path}'. Supported: .json, .yaml and .yml (OpenAPI 3.x).";
 }
