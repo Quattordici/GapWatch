@@ -68,6 +68,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
                         text.Append("          - ").Append(member.Operation.PadRight(width)).Append("  ").Append(member.Location).Append('\n');
                     }
 
+                    AppendPosition(text, finding, context);
                     continue;
                 }
 
@@ -78,6 +79,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
                 }
 
                 text.Append("          ").Append(finding.Message).Append('\n');
+                AppendPosition(text, finding, context);
             }
         }
 
@@ -93,6 +95,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
                 }
 
                 text.Append("          ").Append(finding.Message).Append('\n');
+                AppendPosition(text, finding, context);
                 text.Append("          Justification: ").Append(suppression.Justification).Append('\n');
             }
         }
@@ -107,6 +110,15 @@ public sealed class ConsoleReportRenderer : IReportRenderer
         }
 
         return text.ToString();
+    }
+
+    /// <summary><c>at api/openapi.json:42:9</c>, the compiler-style form editors and build logs turn into links.</summary>
+    private static void AppendPosition(StringBuilder text, Finding finding, ReportContext context)
+    {
+        if (finding.Position is { } position)
+        {
+            text.Append("          at ").Append(context.HeadLabel).Append(':').Append(position).Append('\n');
+        }
     }
 }
 
@@ -162,8 +174,8 @@ public sealed class MarkdownReportRenderer : IReportRenderer
             text.Append("| ").Append(finding.Rule.Id)
                 .Append(" | ").Append(finding.Severity)
                 .Append(" | `").Append(Code(finding.Operation))
-                .Append("` | `").Append(Code(finding.Location))
-                .Append("` | ").Append(Cell(finding.Message))
+                .Append("` | `").Append(Code(finding.Location)).Append('`').Append(Line(finding))
+                .Append(" | ").Append(Cell(finding.Message))
                 .Append(" | ").Append(Cell(suppression.Justification))
                 .Append(" |\n");
         }
@@ -218,7 +230,7 @@ public sealed class MarkdownReportRenderer : IReportRenderer
                     .Append(" | ").Append(string.Join("<br>", change.Members.Select(m => $"`{Code(m.Operation)}`")))
                     .Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
                     .Append("` (").Append(origin.Direction.ToString().ToLowerInvariant()).Append(", ")
-                    .Append(change.Members.Count).Append(" operations)")
+                    .Append(change.Members.Count).Append(" operations)").Append(Line(finding))
                     .Append(" | ").Append(Cell(finding.Message))
                     .Append(" |\n");
                 continue;
@@ -226,8 +238,8 @@ public sealed class MarkdownReportRenderer : IReportRenderer
 
             text.Append("| ").Append(finding.Rule.Id)
                 .Append(" | `").Append(Code(finding.Operation))
-                .Append("` | `").Append(Code(finding.Location))
-                .Append("` | ").Append(Cell(finding.Message))
+                .Append("` | `").Append(Code(finding.Location)).Append('`').Append(Line(finding))
+                .Append(" | ").Append(Cell(finding.Message))
                 .Append(" |\n");
         }
 
@@ -236,6 +248,10 @@ public sealed class MarkdownReportRenderer : IReportRenderer
             text.Append("\n</details>\n");
         }
     }
+
+    /// <summary>The head document line, under the location; a pull request comment cannot link to it reliably.</summary>
+    private static string Line(Finding finding) =>
+        finding.Position is { } position ? string.Create(CultureInfo.InvariantCulture, $"<br>line {position.Line}") : string.Empty;
 
     private static string Code(string value) => value.Replace('`', '\'').Replace("|", "\\|", StringComparison.Ordinal);
 

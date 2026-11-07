@@ -2,6 +2,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 using GapWatch.Core;
 using GapWatch.Core.Comparison;
+using GapWatch.Core.Findings;
 using GapWatch.OpenApi;
 using GapWatch.Reporting;
 using Shouldly;
@@ -30,8 +31,13 @@ public sealed class YamlReaderTests
             ContractLoader.Load(TestSpec.FixturePath("petstore-v2.yaml")));
         var context = new ReportContext("v1", "v2");
 
-        new ConsoleReportRenderer().Render(yaml, context).ShouldBe(new ConsoleReportRenderer().Render(json, context));
+        // Positions differ by design (they point into each file); everything else must be identical.
+        new ConsoleReportRenderer().Render(WithoutPositions(yaml), context)
+            .ShouldBe(new ConsoleReportRenderer().Render(WithoutPositions(json), context));
     }
+
+    private static ComparisonResult WithoutPositions(ComparisonResult result) =>
+        new(result.Findings.Select(f => f with { Position = null }).ToList());
 
     [Test]
     public void Json_and_yaml_versions_can_be_compared_with_each_other()

@@ -72,7 +72,7 @@ public sealed class MachineReportTests
     }
 
     [Test]
-    public void Sarif_results_point_at_the_head_document_and_carry_the_logical_location()
+    public void Sarif_results_without_a_position_point_at_the_first_line_of_the_head_document()
     {
         var result = Run(new SarifReportRenderer().Render(new ComparisonResult([ParameterGone]), Context)).GetProperty("results")[0];
         var location = result.GetProperty("locations")[0];

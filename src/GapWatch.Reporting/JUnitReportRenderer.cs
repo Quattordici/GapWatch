@@ -40,11 +40,11 @@ public sealed class JUnitReportRenderer : IReportRenderer
                     "failure",
                     new XAttribute("message", finding.Message),
                     new XAttribute("type", $"{finding.Rule.Id} {finding.Severity}"),
-                    Details(finding)));
+                    Details(finding, context)));
             }
             else
             {
-                testCase.Add(new XElement("system-out", $"{finding.Severity}: {Details(finding)}"));
+                testCase.Add(new XElement("system-out", $"{finding.Severity}: {Details(finding, context)}"));
             }
 
             cases.Add(testCase);
@@ -103,6 +103,9 @@ public sealed class JUnitReportRenderer : IReportRenderer
             new XAttribute("classname", finding.Operation),
             new XAttribute("name", string.Create(CultureInfo.InvariantCulture, $"{finding.Rule.Id} {finding.Rule.Name}: {finding.Location}")));
 
-    private static string Details(Finding finding) =>
-        $"{finding.Operation} {finding.Location}: {finding.Message}";
+    /// <summary>The failure text; the test name stays position-free so test history survives unrelated edits.</summary>
+    private static string Details(Finding finding, ReportContext context) =>
+        finding.Position is { } position
+            ? $"{finding.Operation} {finding.Location}: {finding.Message} (at {context.HeadLabel}:{position})"
+            : $"{finding.Operation} {finding.Location}: {finding.Message}";
 }

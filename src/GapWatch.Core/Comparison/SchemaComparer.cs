@@ -5,12 +5,17 @@ namespace GapWatch.Core.Comparison;
 
 /// <summary>
 /// Receives findings from the schema comparer: the schema path such as <c>$.items[].name</c>, and the component schema
-/// the change originates in (the innermost <c>$ref</c> that both versions share), if any.
+/// the change originates in (the innermost <c>$ref</c> that both versions share), if any, and where the change is in the
+/// head document, if known.
 /// </summary>
-internal delegate void SchemaFindingSink(RuleDescriptor rule, string schemaPath, string message, SchemaOrigin? origin);
+internal delegate void SchemaFindingSink(
+    RuleDescriptor rule, string schemaPath, string message, SourcePosition? position, SchemaOrigin? origin);
 
-/// <summary>Emits a finding at a schema path; the origin is filled in by the enclosing comparison.</summary>
-internal delegate void ReportFinding(RuleDescriptor rule, string schemaPath, string message);
+/// <summary>
+/// Emits a finding at a schema path; the origin is filled in by the enclosing comparison. A null
+/// <paramref name="position"/> means the head schema node being compared (or its closest positioned ancestor).
+/// </summary>
+internal delegate void ReportFinding(RuleDescriptor rule, string schemaPath, string message, SourcePosition? position = null);
 
 /// <summary>
 /// Direction-aware structural comparison of two schemas. The same structural change is breaking or safe depending on
@@ -33,8 +38,9 @@ internal static class SchemaComparer
         SchemaContract head,
         Direction direction,
         string path,
+        SourcePosition? position,
         SchemaFindingSink sink) =>
-        Compare(baseline, head, direction, path, sink, scope: null);
+        Compare(baseline, head, direction, path, position, sink, scope: null);
 
     /// <summary>The component schema currently being compared and where its root sits in the full path.</summary>
     private readonly record struct ComponentScope(string Name, int PathStart);
@@ -44,6 +50,7 @@ internal static class SchemaComparer
         SchemaContract head,
         Direction direction,
         string path,
+        SourcePosition? fallback,
         SchemaFindingSink sink,
         ComponentScope? scope)
     {
@@ -62,13 +69,15 @@ internal static class SchemaComparer
             scope = new ComponentScope(name, path.Length);
         }
 
-        ReportFinding report = (rule, schemaPath, message) =>
+        var here = head.Position ?? fallback;
+        ReportFinding report = (rule, schemaPath, message, position) =>
         {
             var owner = schemaPath == path && enclosing is not null ? enclosing : scope;
             sink(
                 rule,
                 schemaPath,
                 message,
+                position ?? here,
                 owner is { } s ? new SchemaOrigin(s.Name, Root + schemaPath[s.PathStart..], direction) : null);
         };
 
@@ -80,14 +89,14 @@ internal static class SchemaComparer
         CompareFormat(baseline, head, direction, path, report);
         CompareNullability(baseline, head, direction, path, report);
         CompareEnums(baseline, head, direction, path, report);
-        CompareProperties(baseline, head, direction, path, report, sink, scope);
+        CompareProperties(baseline, head, direction, path, here, report, sink, scope);
 
         if (baseline.Items is not null && head.Items is not null)
         {
-            Compare(baseline.Items, head.Items, direction, $"{path}[]", sink, scope);
+            Compare(baseline.Items, head.Items, direction, $"{path}[]", here, sink, scope);
         }
 
-        CompareVariants(baseline, head, direction, path, report, sink, scope);
+        CompareVariants(baseline, head, direction, path, here, report, sink, scope);
     }
 
     private static bool CompareTypes(
@@ -240,6 +249,7 @@ internal static class SchemaComparer
         SchemaContract head,
         Direction direction,
         string path,
+        SourcePosition? here,
         ReportFinding report,
         SchemaFindingSink sink,
         ComponentScope? scope)
@@ -280,17 +290,22 @@ internal static class SchemaComparer
 
             if (direction == Direction.Request && !was.Required && now.Required)
             {
-                report(RuleCatalog.PropertyBecameRequired, propertyPath, $"Request property '{name}' became required.");
+                report(
+                    RuleCatalog.PropertyBecameRequired,
+                    propertyPath,
+                    $"Request property '{name}' became required.",
+                    now.Position);
             }
             else if (direction == Direction.Response && was.Required && !now.Required)
             {
                 report(
                     RuleCatalog.PropertyBecameOptional,
                     propertyPath,
-                    $"Response property '{name}' is no longer guaranteed to be present.");
+                    $"Response property '{name}' is no longer guaranteed to be present.",
+                    now.Position);
             }
 
-            Compare(was.Schema, now.Schema, direction, propertyPath, sink, scope);
+            Compare(was.Schema, now.Schema, direction, propertyPath, now.Position ?? here, sink, scope);
         }
 
         if (direction != Direction.Request)
@@ -305,7 +320,8 @@ internal static class SchemaComparer
                 report(
                     RuleCatalog.RequiredPropertyAdded,
                     $"{path}.{name}",
-                    $"New required request property '{name}' was added.");
+                    $"New required request property '{name}' was added.",
+                    now.Position);
             }
         }
     }
@@ -315,6 +331,7 @@ internal static class SchemaComparer
         SchemaContract head,
         Direction direction,
         string path,
+        SourcePosition? here,
         ReportFinding report,
         SchemaFindingSink sink,
         ComponentScope? scope)
@@ -331,7 +348,7 @@ internal static class SchemaComparer
         {
             if (after.TryGetValue(key, out var now))
             {
-                Compare(was, now, direction, $"{path}<{key}>", sink, scope);
+                Compare(was, now, direction, $"{path}<{key}>", here, sink, scope);
             }
             else if (direction == Direction.Request)
             {
@@ -346,7 +363,7 @@ internal static class SchemaComparer
 
         foreach (var key in after.Keys.Where(k => !before.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal))
         {
-            report(RuleCatalog.VariantAdded, path, $"New alternative '{key}' can be returned.");
+            report(RuleCatalog.VariantAdded, path, $"New alternative '{key}' can be returned.", after[key].Position);
         }
     }
 

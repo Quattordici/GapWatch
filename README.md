@@ -75,7 +75,7 @@ A complete before/after sample lives in `tests/GapWatch.Tests/Fixtures`, with th
 | `sarif` | Code-scanning dashboards | SARIF 2.1.0, validated against the OASIS schema in development. Levels: Breaking `error`, Warning `warning`, Info `note`. Suppressed findings are kept with `suppressions[].kind = "external"` and their justification. `partialFingerprints` hash rule, operation and location, so a finding keeps its identity when its wording changes. |
 | `junit` | CI test tabs | One test case per finding, grouped by operation. Findings at or above `--fail-on` are failures, so the XML agrees with the exit code; suppressed findings are skipped with their justification. |
 
-SARIF results point at the head document at line 1, plus a logical location (`GET /pets > response 200 application/json: $[].id`). Readers do not record source positions yet; real line numbers arrive with source mapping in v0.3.
+Every finding carries the line and column of the change in the head document (JSON or YAML): the changed element, or the closest enclosing element that still exists, such as the schema a property was removed from. A change inside a shared component points at the component's definition. The console report prints it as `at api/openapi.json:42:9`, the Markdown report as the line number under the location, and SARIF results use it as their region, next to a logical location (`GET /pets > response 200 application/json: $[].id`). A removed operation has no place in the head document and is anchored at line 1.
 
 ### Changes in shared schemas
 
@@ -160,7 +160,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
 - **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
-- **No source positions.** SARIF results point at line 1 of the head document; mapping to real lines comes with v0.3.
+- **Positions are spec positions.** Findings point into the OpenAPI document, not yet at the C# controller, endpoint or DTO that produced it; that mapping is the next v0.3 step.
 
 ## Roadmap
 
@@ -168,7 +168,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
-| v0.3 | Roslyn analysis of contract types and endpoints, findings mapped to source locations |
+| v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), then Roslyn analysis that maps operations and schemas to controllers, minimal API endpoints and contract types |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
 

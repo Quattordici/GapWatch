@@ -135,6 +135,6 @@ public sealed class FindingGroupTests
 
         console.ShouldContain("BREAKING (3)\n  [GW029] Pet $.name (response), affects 3 operations\n");
         console.ShouldContain("          - GET /pets/{id}  response 200 application/json: $.name\n");
-        markdown.ShouldContain("| GW029 | `GET /pets`<br>`GET /pets/{id}`<br>`POST /pets` | schema `Pet` `$.name` (response, 3 operations) |");
+        markdown.ShouldContain("| GW029 | `GET /pets`<br>`GET /pets/{id}`<br>`POST /pets` | schema `Pet` `$.name` (response, 3 operations)<br>line ");
     }
 }

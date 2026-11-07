@@ -5,50 +5,63 @@ BREAKING (20)
   [GW044] DELETE /pets/{id}
           response 204
           Success response 204 was removed.
+          at petstore-v2.json:62:7
   [GW052] DELETE /pets/{id}
           security
           Previously accepted security (apiKey[]) was replaced by (bearer[]).
+          at petstore-v2.json:62:7
   [GW001] GET /owners
           Operation 'GET /owners' was removed.
   [GW010] GET /pets
           parameter 'region' (query)
           Required parameter 'region' (query) was added.
+          at petstore-v2.json:19:11
   [GW023] GET /pets
           parameter 'status' (query)
           Enum value(s) no longer accepted: 'sold'.
+          at petstore-v2.json:18:46
   [GW020] Pet $.id (response), affects 3 operations
           Type changed from 'integer' to 'string'.
           - GET /pets       response 200 application/json: $[].id
           - GET /pets/{id}  response 200 application/json: $.id
           - POST /pets      response 201 application/json: $.id
+          at petstore-v2.json:78:11
   [GW029] Pet $.name (response), affects 3 operations
           Response property 'name' is no longer guaranteed to be present.
           - GET /pets       response 200 application/json: $[].name
           - GET /pets/{id}  response 200 application/json: $.name
           - POST /pets      response 201 application/json: $.name
+          at petstore-v2.json:79:11
   [GW022] Pet $.owner (response), affects 3 operations
           The value can now be null.
           - GET /pets       response 200 application/json: $[].owner
           - GET /pets/{id}  response 200 application/json: $.owner
           - POST /pets      response 201 application/json: $.owner
+          at petstore-v2.json:81:11
   [GW052] GET /pets
           security
           Previously accepted security (apiKey[]) was replaced by (bearer[]).
+          at petstore-v2.json:14:7
   [GW050] GET /pets/{id}
           security
           The operation now requires authentication (bearer[]).
+          at petstore-v2.json:52:7
   [GW028] POST /pets
           request body (application/json): $.kind
           Request property 'kind' became required.
+          at petstore-v2.json:92:11
   [GW027] POST /pets
           request body (application/json): $.ownerId
           New required request property 'ownerId' was added.
+          at petstore-v2.json:93:11
   [GW043] POST /pets
           request body (application/xml)
           Request media type 'application/xml' is no longer accepted.
+          at petstore-v2.json:34:9
   [GW052] POST /pets
           security
           Previously accepted security (apiKey[]) was replaced by (bearer[]).
+          at petstore-v2.json:32:7
 
 WARNINGS (7)
   [GW024] Pet $.status (response), affects 3 operations
@@ -56,19 +69,25 @@ WARNINGS (7)
           - GET /pets       response 200 application/json: $[].status
           - GET /pets/{id}  response 200 application/json: $.status
           - POST /pets      response 201 application/json: $.status
+          at petstore-v2.json:80:11
   [GW026] Pet $.tag (response), affects 3 operations
           Optional response property 'tag' was removed.
           - GET /pets       response 200 application/json: $[].tag
           - GET /pets/{id}  response 200 application/json: $.tag
           - POST /pets      response 201 application/json: $.tag
+          at petstore-v2.json:74:7
   [GW004] POST /pets
           operationId changed from 'createPet' to 'addPet'.
+          at petstore-v2.json:32:7
 
 INFO (3)
   [GW002] DELETE /pets/{id}
           Operation 'DELETE /pets/{id}' was marked deprecated.
+          at petstore-v2.json:62:7
   [GW003] GET /health
           Operation 'GET /health' was added.
+          at petstore-v2.json:7:7
   [GW045] POST /pets
           response 400
           Response 400 was removed.
+          at petstore-v2.json:32:7
