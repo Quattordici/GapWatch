@@ -104,8 +104,14 @@ public sealed class JUnitReportRenderer : IReportRenderer
             new XAttribute("name", string.Create(CultureInfo.InvariantCulture, $"{finding.Rule.Id} {finding.Rule.Name}: {finding.Location}")));
 
     /// <summary>The failure text; the test name stays position-free so test history survives unrelated edits.</summary>
-    private static string Details(Finding finding, ReportContext context) =>
-        finding.Position is { } position
-            ? $"{finding.Operation} {finding.Location}: {finding.Message} (at {context.HeadLabel}:{position})"
-            : $"{finding.Operation} {finding.Location}: {finding.Message}";
+    private static string Details(Finding finding, ReportContext context)
+    {
+        var text = $"{finding.Operation} {finding.Location}: {finding.Message}";
+        if (finding.Position is { } position)
+        {
+            text += $" (at {context.HeadLabel}:{position})";
+        }
+
+        return finding.Code is { } code ? $"{text} (code at {code})" : text;
+    }
 }

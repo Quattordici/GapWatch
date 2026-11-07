@@ -18,6 +18,7 @@
     <ProjectReference Include="..\GapWatch.Core\GapWatch.Core.csproj" />
     <ProjectReference Include="..\GapWatch.OpenApi\GapWatch.OpenApi.csproj" />
     <ProjectReference Include="..\GapWatch.Reporting\GapWatch.Reporting.csproj" />
+    <ProjectReference Include="..\GapWatch.Roslyn\GapWatch.Roslyn.csproj" />
   </ItemGroup>
 
 </Project>

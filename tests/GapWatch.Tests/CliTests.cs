@@ -29,6 +29,24 @@ public sealed class CliTests
     }
 
     [Test]
+    public void Compare_with_source_maps_findings_to_the_csharp_code()
+    {
+        var (code, output, _) = Run("compare", V1, V2, "--source", TestSpec.FixturePath("PetstoreApi"));
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain("code at " + Path.Join(TestSpec.FixturePath("PetstoreApi"), "Models.cs").Replace('\\', '/') + ":16:12\n");
+    }
+
+    [Test]
+    public void Compare_with_a_missing_source_directory_is_a_usage_error()
+    {
+        var (code, _, error) = Run("compare", V1, V2, "--source", "/definitely/not/a/source/dir");
+
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("Source directory not found");
+    }
+
+    [Test]
     public void Compare_of_identical_files_succeeds()
     {
         var (code, output, _) = Run("compare", V1, V1);

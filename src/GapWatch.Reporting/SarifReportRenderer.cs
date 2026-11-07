@@ -17,7 +17,8 @@ namespace GapWatch.Reporting;
 /// <c>defaultConfiguration.level</c> carries the rule's default; <c>result.level</c> the effective (possibly overridden) one.</item>
 /// <item>Every result points at the head document, at the line and column of the changed element (or its closest
 /// enclosing element that still exists; line 1 for a removed operation). GitHub code scanning requires all four region
-/// coordinates. Each result also carries a logical location (<c>GET /pets</c> plus the location inside it), which is what identifies the change.</item>
+/// coordinates. When a source map found the C# code behind the change, that code is the primary location and the
+/// OpenAPI document a related location. Each result also carries a logical location (<c>GET /pets</c> plus the location inside it), which is what identifies the change.</item>
 /// <item>Suppressed findings are emitted with <c>suppressions[].kind = "external"</c> and the justification, so viewers
 /// show them as suppressed instead of dropping them. Unused suppressions become tool execution notifications.</item>
 /// <item><c>partialFingerprints</c> hash rule id, operation and location, so a finding keeps its identity across runs
@@ -204,23 +205,20 @@ public sealed class SarifReportRenderer : IReportRenderer
         json.WriteString("level", Level(finding.Severity));
         WriteText(json, "message", $"{finding.Operation}: {finding.Message}");
 
+        // With a code location, the C# code is the primary location (that is where the change is made, and where
+        // pull request annotations are useful) and the OpenAPI document becomes a related location.
+        var specRegion = finding.Position ?? new SourcePosition(1, 1);
         json.WriteStartArray("locations");
         json.WriteStartObject();
-        json.WriteStartObject("physicalLocation");
-        json.WriteStartObject("artifactLocation");
-        json.WriteString("uri", ArtifactUri(context.HeadLabel));
-        json.WriteNumber("index", 1);
-        json.WriteEndObject();
-        json.WriteStartObject("region");
-        // GitHub code scanning requires a complete region. The position marks the start of the changed element's key;
-        // without one (a removed operation, or a reader without positions) the result is anchored at the first line.
-        var position = finding.Position ?? new SourcePosition(1, 1);
-        json.WriteNumber("startLine", position.Line);
-        json.WriteNumber("startColumn", position.Column);
-        json.WriteNumber("endLine", position.Line);
-        json.WriteNumber("endColumn", position.Column + 1);
-        json.WriteEndObject();
-        json.WriteEndObject();
+        if (finding.Code is { } code)
+        {
+            WritePhysicalLocation(json, ArtifactUri(code.File), artifactIndex: null, code.Line, code.Column);
+        }
+        else
+        {
+            WritePhysicalLocation(json, ArtifactUri(context.HeadLabel), artifactIndex: 1, specRegion.Line, specRegion.Column);
+        }
+
         json.WriteStartArray("logicalLocations");
         json.WriteStartObject();
         json.WriteString("name", finding.Location);
@@ -230,6 +228,17 @@ public sealed class SarifReportRenderer : IReportRenderer
         json.WriteEndArray();
         json.WriteEndObject();
         json.WriteEndArray();
+
+        if (finding.Code is not null)
+        {
+            json.WriteStartArray("relatedLocations");
+            json.WriteStartObject();
+            json.WriteNumber("id", 1);
+            WritePhysicalLocation(json, ArtifactUri(context.HeadLabel), artifactIndex: 1, specRegion.Line, specRegion.Column);
+            WriteText(json, "message", "Where the change is in the OpenAPI document.");
+            json.WriteEndObject();
+            json.WriteEndArray();
+        }
 
         json.WriteStartObject("partialFingerprints");
         json.WriteString(FingerprintKey, Fingerprint(finding));
@@ -258,6 +267,30 @@ public sealed class SarifReportRenderer : IReportRenderer
 
         json.WriteEndObject();
 
+        json.WriteEndObject();
+    }
+
+    /// <summary>
+    /// A physical location with a one-character region; GitHub code scanning requires all four region coordinates.
+    /// Without a position (a removed operation, or a reader without positions) callers pass line 1, column 1.
+    /// </summary>
+    private static void WritePhysicalLocation(Utf8JsonWriter json, string uri, int? artifactIndex, int line, int column)
+    {
+        json.WriteStartObject("physicalLocation");
+        json.WriteStartObject("artifactLocation");
+        json.WriteString("uri", uri);
+        if (artifactIndex is { } index)
+        {
+            json.WriteNumber("index", index);
+        }
+
+        json.WriteEndObject();
+        json.WriteStartObject("region");
+        json.WriteNumber("startLine", line);
+        json.WriteNumber("startColumn", column);
+        json.WriteNumber("endLine", line);
+        json.WriteNumber("endColumn", column + 1);
+        json.WriteEndObject();
         json.WriteEndObject();
     }
 

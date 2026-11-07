@@ -150,4 +150,29 @@ public sealed class SourcePositionTests
         new JUnitReportRenderer().Render(result, context).ShouldContain("(at api/v2.json:42:9)");
         new MarkdownReportRenderer().Render(result, context).ShouldContain("`parameter 'q' (query)`<br>line 42 |");
     }
+
+    [Test]
+    public void With_a_code_location_sarif_points_at_the_code_and_relates_the_spec_and_text_reports_show_both()
+    {
+        var finding = new Finding(RuleCatalog.ParameterRemoved, "GET /pets", "parameter 'q' (query)", "Parameter 'q' (query) was removed.")
+        {
+            Position = new SourcePosition(42, 9),
+            Code = new CodeLocation("src/Api/PetsController.cs", 12, 5),
+        };
+        var result = new ComparisonResult([finding]);
+        var context = new ReportContext("v1.json", "api/v2.json");
+
+        using var sarif = JsonDocument.Parse(new SarifReportRenderer().Render(result, context));
+        var sarifResult = sarif.RootElement.GetProperty("runs")[0].GetProperty("results")[0];
+        static string Place(JsonElement location) =>
+            $"{location.GetProperty("physicalLocation").GetProperty("artifactLocation").GetProperty("uri").GetString()}:"
+            + $"{location.GetProperty("physicalLocation").GetProperty("region").GetProperty("startLine")}";
+        Place(sarifResult.GetProperty("locations")[0]).ShouldBe("src/Api/PetsController.cs:12");
+        Place(sarifResult.GetProperty("relatedLocations")[0]).ShouldBe("api/v2.json:42");
+
+        new ConsoleReportRenderer().Render(result, context)
+            .ShouldContain("          at api/v2.json:42:9\n          code at src/Api/PetsController.cs:12:5\n");
+        new JUnitReportRenderer().Render(result, context).ShouldContain("(at api/v2.json:42:9) (code at src/Api/PetsController.cs:12:5)");
+        new MarkdownReportRenderer().Render(result, context).ShouldContain("`parameter 'q' (query)`<br>line 42<br>`src/Api/PetsController.cs:12` |");
+    }
 }

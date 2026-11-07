@@ -112,12 +112,20 @@ public sealed class ConsoleReportRenderer : IReportRenderer
         return text.ToString();
     }
 
-    /// <summary><c>at api/openapi.json:42:9</c>, the compiler-style form editors and build logs turn into links.</summary>
+    /// <summary>
+    /// <c>at api/openapi.json:42:9</c> and <c>code at src/Pet.cs:12:5</c>, the compiler-style form editors and build logs
+    /// turn into links.
+    /// </summary>
     private static void AppendPosition(StringBuilder text, Finding finding, ReportContext context)
     {
         if (finding.Position is { } position)
         {
             text.Append("          at ").Append(context.HeadLabel).Append(':').Append(position).Append('\n');
+        }
+
+        if (finding.Code is { } code)
+        {
+            text.Append("          code at ").Append(code).Append('\n');
         }
     }
 }
@@ -249,9 +257,19 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         }
     }
 
-    /// <summary>The head document line, under the location; a pull request comment cannot link to it reliably.</summary>
-    private static string Line(Finding finding) =>
-        finding.Position is { } position ? string.Create(CultureInfo.InvariantCulture, $"<br>line {position.Line}") : string.Empty;
+    /// <summary>
+    /// The head document line and the code location, under the location. A pull request comment cannot link to them
+    /// reliably, because it does not know the commit.
+    /// </summary>
+    private static string Line(Finding finding)
+    {
+        var line = finding.Position is { } position
+            ? string.Create(CultureInfo.InvariantCulture, $"<br>line {position.Line}")
+            : string.Empty;
+        return finding.Code is { } code
+            ? string.Create(CultureInfo.InvariantCulture, $"{line}<br>`{Code(code.File)}:{code.Line}`")
+            : line;
+    }
 
     private static string Code(string value) => value.Replace('`', '\'').Replace("|", "\\|", StringComparison.Ordinal);
 

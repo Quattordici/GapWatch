@@ -4,6 +4,7 @@
     <Project Path="src/GapWatch.Core/GapWatch.Core.csproj" />
     <Project Path="src/GapWatch.OpenApi/GapWatch.OpenApi.csproj" />
     <Project Path="src/GapWatch.Reporting/GapWatch.Reporting.csproj" />
+    <Project Path="src/GapWatch.Roslyn/GapWatch.Roslyn.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/GapWatch.Tests/GapWatch.Tests.csproj" />
