@@ -167,7 +167,12 @@ public sealed class SarifReportRenderer : IReportRenderer
             {
                 json.WriteStartObject();
                 json.WriteString("level", "warning");
-                WriteText(json, "message", $"Suppression '{suppression.Describe()}' matched no finding and can be removed.");
+                WriteText(
+                    json,
+                    "message",
+                    suppression.IsBaseline
+                        ? $"Baseline entry '{suppression.Describe()}' matched no finding; rewrite the baseline to drop it."
+                        : $"Suppression '{suppression.Describe()}' matched no finding and can be removed.");
                 json.WriteEndObject();
             }
 

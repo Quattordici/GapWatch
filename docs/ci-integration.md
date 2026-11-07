@@ -29,7 +29,7 @@ GapWatch compares two files; it never builds or fetches anything itself. Pick on
 |---|---|---|
 | **Committed spec (recommended)** | Commit the generated `openapi.json` (or `.yaml`) and have the build fail when it is stale. Read the base version straight from git: `git show origin/main:api/openapi.json > base.json` | Simplest and fastest. The spec diff is also visible in the pull request itself. Needs a "spec is up to date" check. |
 | Generate from the base commit | Check out the target branch into a separate worktree (`git worktree add ../base origin/main`), build it, and generate the spec there the same way as for the head. | Always accurate, but builds twice and both builds must produce the spec identically. |
-| Published artifact | Download the spec your last release published (package feed, build artifact, API gateway). | Compares against what is actually deployed rather than against the target branch. |
+| Published artifact | Download the spec your last release published (package feed, build artifact, API gateway). | Compares against what is actually deployed rather than against the target branch. Differences that already exist when you adopt GapWatch can be accepted with a [baseline](configuration.md#baselines). |
 
 Things that break this step in CI:
 
