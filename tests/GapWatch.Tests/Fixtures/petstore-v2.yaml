@@ -1,0 +1,152 @@
+openapi: 3.0.3
+info:
+  title: Petstore
+  version: 2.0.0
+security:
+- bearer: []
+paths:
+  /health:
+    get:
+      operationId: health
+      security: []
+      responses:
+        '200':
+          description: OK
+  /pets:
+    get:
+      operationId: listPets
+      parameters:
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          format: int64
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum:
+          - available
+      - name: region
+        in: query
+        required: true
+        schema:
+          type: string
+      responses:
+        '200':
+          description: A list of pets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pet'
+    post:
+      operationId: addPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NewPet'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+  /pets/{id}:
+    parameters:
+    - name: id
+      in: path
+      required: true
+      schema:
+        type: integer
+        format: int64
+    get:
+      operationId: getPet
+      responses:
+        '200':
+          description: A pet
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pet'
+        '404':
+          description: Not found
+    delete:
+      operationId: deletePet
+      deprecated: true
+      responses:
+        '200':
+          description: Deleted
+components:
+  securitySchemes:
+    bearer:
+      type: http
+      scheme: bearer
+  schemas:
+    Pet:
+      type: object
+      required:
+      - id
+      - status
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum:
+          - available
+          - pending
+          - sold
+          - archived
+        owner:
+          allOf:
+          - $ref: '#/components/schemas/Owner'
+          nullable: true
+        category:
+          $ref: '#/components/schemas/Category'
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+    NewPet:
+      type: object
+      required:
+      - name
+      - kind
+      - ownerId
+      properties:
+        name:
+          type: string
+        tag:
+          type: string
+        kind:
+          type: string
+          enum:
+          - dog
+          - cat
+        ownerId:
+          type: integer
+          format: int64
+    Owner:
+      type: object
+      required:
+      - id
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+    Category:
+      type: object
+      properties:
+        name:
+          type: string
+        parent:
+          $ref: '#/components/schemas/Category'

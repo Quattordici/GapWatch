@@ -18,6 +18,10 @@
                 "text": "An operation (method + path) that existed in the base contract no longer exists."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "An operation (method + path) that existed in the base contract no longer exists. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW001 OperationRemoved** (Breaking by default)\n\nAn operation (method + path) that existed in the base contract no longer exists.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -37,6 +41,10 @@
                 "text": "An operation was newly marked deprecated."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "An operation was newly marked deprecated. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW002 OperationDeprecated** (Info by default)\n\nAn operation was newly marked deprecated.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "note"
               },
@@ -56,6 +64,10 @@
                 "text": "A new operation was added."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A new operation was added. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW003 OperationAdded** (Info by default)\n\nA new operation was added.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "note"
               },
@@ -75,6 +87,10 @@
                 "text": "The operationId changed. Generated clients (NSwag, Kiota, ...) name their methods after it, so this breaks callers of the generated code."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "The operationId changed. Generated clients (NSwag, Kiota, ...) name their methods after it, so this breaks callers of the generated code. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW004 OperationIdChanged** (Warning by default)\n\nThe operationId changed. Generated clients (NSwag, Kiota, ...) name their methods after it, so this breaks callers of the generated code.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -94,6 +110,10 @@
                 "text": "A new required parameter was added; existing callers do not send it."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A new required parameter was added; existing callers do not send it. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW010 RequiredParameterAdded** (Breaking by default)\n\nA new required parameter was added; existing callers do not send it.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -113,6 +133,10 @@
                 "text": "An optional parameter became required; callers that omitted it now fail."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "An optional parameter became required; callers that omitted it now fail. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW011 ParameterBecameRequired** (Breaking by default)\n\nAn optional parameter became required; callers that omitted it now fail.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -132,6 +156,10 @@
                 "text": "A parameter was removed. Callers that still send it may be rejected or silently ignored."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A parameter was removed. Callers that still send it may be rejected or silently ignored. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW012 ParameterRemoved** (Warning by default)\n\nA parameter was removed. Callers that still send it may be rejected or silently ignored.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -151,6 +179,10 @@
                 "text": "A type changed incompatibly. Requests: the server stopped accepting a type it accepted. Responses: the server may now return a type consumers do not expect. (integer to number widening is request-safe only.)"
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A type changed incompatibly. Requests: the server stopped accepting a type it accepted. Responses: the server may now return a type consumers do not expect. (integer to number widening is request-safe only.) See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW020 TypeChanged** (Breaking by default)\n\nA type changed incompatibly. Requests: the server stopped accepting a type it accepted. Responses: the server may now return a type consumers do not expect. (integer to number widening is request-safe only.)\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -170,6 +202,10 @@
                 "text": "A format changed incompatibly (for example int32 to int64 in a response, or date to date-time in either direction)."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A format changed incompatibly (for example int32 to int64 in a response, or date to date-time in either direction). See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW021 FormatChanged** (Breaking by default)\n\nA format changed incompatibly (for example int32 to int64 in a response, or date to date-time in either direction).\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -189,6 +225,10 @@
                 "text": "Requests: a nullable value became non-nullable. Responses: a non-nullable value became nullable."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Requests: a nullable value became non-nullable. Responses: a non-nullable value became nullable. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW022 NullabilityChanged** (Breaking by default)\n\nRequests: a nullable value became non-nullable. Responses: a non-nullable value became nullable.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -208,6 +248,10 @@
                 "text": "Request enum: an accepted value was removed, or an enum constraint was introduced on a previously free value."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request enum: an accepted value was removed, or an enum constraint was introduced on a previously free value. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW023 EnumValueRemoved** (Breaking by default)\n\nRequest enum: an accepted value was removed, or an enum constraint was introduced on a previously free value.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -227,6 +271,10 @@
                 "text": "Response enum: a new value can be returned (or the enum constraint was dropped). Consumers with exhaustive handling or strict enum deserialization may fail."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Response enum: a new value can be returned (or the enum constraint was dropped). Consumers with exhaustive handling or strict enum deserialization may fail. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW024 EnumValueAdded** (Warning by default)\n\nResponse enum: a new value can be returned (or the enum constraint was dropped). Consumers with exhaustive handling or strict enum deserialization may fail.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -246,6 +294,10 @@
                 "text": "Response: a property that was always present was removed."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Response: a property that was always present was removed. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW025 RequiredPropertyRemoved** (Breaking by default)\n\nResponse: a property that was always present was removed.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -265,6 +317,10 @@
                 "text": "A property was removed (an optional response property, or any request property)."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A property was removed (an optional response property, or any request property). See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW026 PropertyRemoved** (Warning by default)\n\nA property was removed (an optional response property, or any request property).\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -284,6 +340,10 @@
                 "text": "Request: a new required property was added; existing callers do not send it."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: a new required property was added; existing callers do not send it. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW027 RequiredPropertyAdded** (Breaking by default)\n\nRequest: a new required property was added; existing callers do not send it.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -303,6 +363,10 @@
                 "text": "Request: an optional property became required."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: an optional property became required. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW028 PropertyBecameRequired** (Breaking by default)\n\nRequest: an optional property became required.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -322,6 +386,10 @@
                 "text": "Response: a property that was always present may now be missing."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Response: a property that was always present may now be missing. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW029 PropertyBecameOptional** (Breaking by default)\n\nResponse: a property that was always present may now be missing.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -341,6 +409,10 @@
                 "text": "Request: a oneOf/anyOf alternative that was accepted is no longer accepted."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: a oneOf/anyOf alternative that was accepted is no longer accepted. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW030 VariantRemoved** (Breaking by default)\n\nRequest: a oneOf/anyOf alternative that was accepted is no longer accepted.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -360,6 +432,10 @@
                 "text": "Response: a new oneOf/anyOf alternative can be returned that consumers may not handle."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Response: a new oneOf/anyOf alternative can be returned that consumers may not handle. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW031 VariantAdded** (Warning by default)\n\nResponse: a new oneOf/anyOf alternative can be returned that consumers may not handle.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -379,6 +455,10 @@
                 "text": "A required request body was added to an operation that had none."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A required request body was added to an operation that had none. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW040 RequiredRequestBodyAdded** (Breaking by default)\n\nA required request body was added to an operation that had none.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -398,6 +478,10 @@
                 "text": "An optional request body became required."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "An optional request body became required. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW041 RequestBodyBecameRequired** (Breaking by default)\n\nAn optional request body became required.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -417,6 +501,10 @@
                 "text": "The request body was removed. Callers that still send one may be rejected or ignored."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "The request body was removed. Callers that still send one may be rejected or ignored. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW042 RequestBodyRemoved** (Warning by default)\n\nThe request body was removed. Callers that still send one may be rejected or ignored.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -436,6 +524,10 @@
                 "text": "A media type that consumers could send or receive is no longer supported."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A media type that consumers could send or receive is no longer supported. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW043 MediaTypeRemoved** (Breaking by default)\n\nA media type that consumers could send or receive is no longer supported.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -455,6 +547,10 @@
                 "text": "A success (2xx) response was removed."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A success (2xx) response was removed. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW044 SuccessResponseRemoved** (Breaking by default)\n\nA success (2xx) response was removed.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -474,6 +570,10 @@
                 "text": "A non-success response was removed from the contract."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A non-success response was removed from the contract. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW045 ResponseRemoved** (Info by default)\n\nA non-success response was removed from the contract.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "note"
               },
@@ -493,6 +593,10 @@
                 "text": "An operation that allowed anonymous access now requires authentication."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "An operation that allowed anonymous access now requires authentication. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW050 SecurityAdded** (Breaking by default)\n\nAn operation that allowed anonymous access now requires authentication.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -512,6 +616,10 @@
                 "text": "A previously accepted security alternative (scheme or scope set) is no longer accepted."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A previously accepted security alternative (scheme or scope set) is no longer accepted. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW051 SecurityRequirementRemoved** (Warning by default)\n\nA previously accepted security alternative (scheme or scope set) is no longer accepted.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "warning"
               },
@@ -531,6 +639,10 @@
                 "text": "None of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate."
               },
               "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "None of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW052 SecurityRequirementsReplaced** (Breaking by default)\n\nNone of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
               "defaultConfiguration": {
                 "level": "error"
               },
@@ -582,7 +694,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -618,7 +733,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -654,7 +772,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -690,7 +811,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -726,7 +850,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -762,7 +889,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -800,7 +930,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -838,7 +971,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -876,7 +1012,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -912,7 +1051,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -950,7 +1092,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -988,7 +1133,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1026,7 +1174,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1062,7 +1213,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1100,7 +1254,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1138,7 +1295,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1174,7 +1334,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1212,7 +1375,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1250,7 +1416,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1288,7 +1457,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1324,7 +1496,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1362,7 +1537,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1400,7 +1578,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1438,7 +1619,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1476,7 +1660,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1512,7 +1699,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1550,7 +1740,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1588,7 +1781,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1624,7 +1820,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [
@@ -1660,7 +1859,10 @@
                   "index": 1
                 },
                 "region": {
-                  "startLine": 1
+                  "startLine": 1,
+                  "startColumn": 1,
+                  "endLine": 1,
+                  "endColumn": 2
                 }
               },
               "logicalLocations": [

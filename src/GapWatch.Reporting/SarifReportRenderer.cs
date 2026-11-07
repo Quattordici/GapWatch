@@ -10,9 +10,12 @@ namespace GapWatch.Reporting;
 /// </summary>
 /// <remarks>
 /// <list type="bullet">
+/// <item>Every rule carries <c>shortDescription</c>, <c>fullDescription</c> and <c>help</c>, which GitHub code scanning
+/// requires.</item>
 /// <item>Severity maps to <c>level</c>: Breaking is <c>error</c>, Warning is <c>warning</c>, Info is <c>note</c>.
 /// <c>defaultConfiguration.level</c> carries the rule's default; <c>result.level</c> the effective (possibly overridden) one.</item>
-/// <item>Every result points at the head document (line 1, because readers do not track positions yet) and carries a
+/// <item>Every result points at the head document (line 1, column 1, because readers do not track positions yet; GitHub
+/// code scanning requires all four region coordinates) and carries a
 /// logical location (<c>GET /pets</c> plus the location inside it), which is what identifies the change.</item>
 /// <item>Suppressed findings are emitted with <c>suppressions[].kind = "external"</c> and the justification, so viewers
 /// show them as suppressed instead of dropping them. Unused suppressions become tool execution notifications.</item>
@@ -130,6 +133,10 @@ public sealed class SarifReportRenderer : IReportRenderer
             WriteText(json, "shortDescription", rule.Name);
             WriteText(json, "fullDescription", rule.Description);
             json.WriteString("helpUri", RulesHelpUri);
+            json.WriteStartObject("help");
+            json.WriteString("text", $"{rule.Description} See {RulesHelpUri}");
+            json.WriteString("markdown", $"**{rule.Id} {rule.Name}** ({rule.DefaultSeverity} by default)\n\n{rule.Description}\n\n[All GapWatch rules]({RulesHelpUri})");
+            json.WriteEndObject();
             json.WriteStartObject("defaultConfiguration");
             json.WriteString("level", Level(rule.DefaultSeverity));
             json.WriteEndObject();
@@ -204,7 +211,11 @@ public sealed class SarifReportRenderer : IReportRenderer
         json.WriteNumber("index", 1);
         json.WriteEndObject();
         json.WriteStartObject("region");
+        // GitHub code scanning requires a complete region; readers do not track positions yet (v0.3).
         json.WriteNumber("startLine", 1);
+        json.WriteNumber("startColumn", 1);
+        json.WriteNumber("endLine", 1);
+        json.WriteNumber("endColumn", 2);
         json.WriteEndObject();
         json.WriteEndObject();
         json.WriteStartArray("logicalLocations");
