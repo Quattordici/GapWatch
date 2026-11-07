@@ -71,7 +71,7 @@ Run the report steps below even when the compare step fails, otherwise the reaso
 
 What to expect:
 
-- Alerts are anchored at the line of the change in the head document (the member's key, or the closest enclosing element that still exists). The alert title carries the operation, and the result's logical location carries the exact place (`GET /pets > response 200 application/json: $[].id`).
+- Alerts are anchored at the line of the change in the head document (the member's key, or the closest enclosing element that still exists). Pass `--source <dir>` (relative to the repository root, like the head path) to anchor them at the C# code instead: the DTO property, action parameter or endpoint behind the change, with the OpenAPI document as a related location. GitHub then annotates the C# change in the pull request. The alert title carries the operation, and the result's logical location carries the exact place (`GET /pets > response 200 application/json: $[].id`).
 - Severity maps to SARIF levels: Breaking `error`, Warning `warning`, Info `note`.
 - Alerts keep their identity across runs through `partialFingerprints` (rule, operation, location), so rewording a message or moving the change to another line does not reopen alerts.
 - GitHub limits a run to 25,000 results and shows the top 5,000; GapWatch stays far below that in practice.

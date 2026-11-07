@@ -9,5 +9,6 @@
     <PackageVersion Include="TUnit.Mocks" Version="1.78.0" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="YamlDotNet" Version="18.1.0" />
+    <PackageVersion Include="Microsoft.CodeAnalysis.CSharp" Version="5.9.0" />
   </ItemGroup>
 </Project>

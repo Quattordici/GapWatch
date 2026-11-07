@@ -54,6 +54,19 @@ public sealed record Finding(RuleDescriptor Rule, string Operation, string Locat
     /// does not track positions or nothing of it exists in the head (a removed operation).
     /// </summary>
     public Model.SourcePosition? Position { get; init; }
+
+    /// <summary>
+    /// Where the change is in the code that implements the head contract (a controller action, an endpoint, a DTO
+    /// property), when a source map was supplied and found it. Null otherwise.
+    /// </summary>
+    public CodeLocation? Code { get; init; }
+}
+
+/// <summary>A place in a source file: the path as it was given to GapWatch, and a 1-based line and column.</summary>
+public sealed record CodeLocation(string File, int Line, int Column)
+{
+    /// <summary><c>file:line:column</c>, the form compilers print and editors and build logs turn into links.</summary>
+    public override string ToString() => $"{File}:{Line}:{Column}";
 }
 
 /// <summary>Where inside a shared component schema a change was found.</summary>

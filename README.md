@@ -31,7 +31,7 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--source <dir>]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
@@ -42,6 +42,7 @@ gapwatch --version | --help
 - `--format junit` writes JUnit XML for CI test tabs (Azure DevOps, Jenkins, GitLab).
 - `--output` writes the report to a file and prints a one-line summary.
 - `--config` reads a `gapwatch.json` with severity overrides and suppressions (see [Configuration](#configuration)).
+- `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
 
 ### Exit codes
 
@@ -76,6 +77,25 @@ A complete before/after sample lives in `tests/GapWatch.Tests/Fixtures`, with th
 | `junit` | CI test tabs | One test case per finding, grouped by operation. Findings at or above `--fail-on` are failures, so the XML agrees with the exit code; suppressed findings are skipped with their justification. |
 
 Every finding carries the line and column of the change in the head document (JSON or YAML): the changed element, or the closest enclosing element that still exists, such as the schema a property was removed from. A change inside a shared component points at the component's definition. The console report prints it as `at api/openapi.json:42:9`, the Markdown report as the line number under the location, and SARIF results use it as their region, next to a logical location (`GET /pets > response 200 application/json: $[].id`). A removed operation has no place in the head document and is anchored at line 1.
+
+### Mapping findings to C# code
+
+With `--source src/Petstore.Api`, GapWatch reads the C# files of the head API with Roslyn and adds a code location to each finding it can place:
+
+| Finding | Code location |
+|---|---|
+| Change inside a component schema (`Pet $.owner.name`) | The DTO property (`Owner.Name`), following `[JsonPropertyName]`, base classes, positional records, nullable and collection types. If the property is gone from the code, the type. |
+| Parameter change | The action or handler parameter, honouring `[FromQuery(Name = "...")]` and the other binding attributes. |
+| Anything else on an operation | The controller action, or the `MapGet`/`MapPost`/... call. |
+| Removed operation | None: it no longer exists in the head code. |
+
+Operations are matched by method and route. Attribute routing is resolved the way ASP.NET Core does it: class and action `[Route]`, `[HttpGet("...")]` templates, `[controller]`, `[action]` and `[area]` tokens, `~/` and `/` overrides, `Async` suffixes, and constraints, defaults and optional or catch-all markers removed. Minimal APIs are matched through their `MapGroup` prefixes, chained or held in a variable or field, and route constants are evaluated. The console prints `code at src/Models/Pet.cs:12:5`, Markdown adds the file and line, JUnit adds it to the failure text, and SARIF makes the code the primary location with the OpenAPI document as a related location, so code scanning annotates the C# change in a pull request.
+
+How it reads code:
+
+- **Source files only.** Every `.cs` file under the directory is parsed and compiled together against the running .NET runtime. Nothing is restored or built, and no MSBuild is involved, so it runs on any checkout without a build (about a second for a small API). `bin`, `obj` and `.git` are skipped.
+- **ASP.NET Core attributes and `Map*` calls are recognized by name**, because ASP.NET Core is not referenced. A type of your own called `HttpGetAttribute` would confuse it.
+- **Best effort.** Anything that cannot be matched unambiguously gets no code location instead of a wrong one: a schema name declared by two types, generic DTOs (Swashbuckle names them `PetPagedResult`, `Microsoft.AspNetCore.OpenApi` `PagedResultOfPet`), custom schema ids, routes built at runtime, and endpoints mapped in extension methods whose group prefix comes from the caller.
 
 ### Changes in shared schemas
 
@@ -140,12 +160,13 @@ src/
   GapWatch.Core        Contract model, rule catalog, comparison engine, policy (overrides, suppressions). No I/O, no dependencies.
   GapWatch.OpenApi     OpenAPI 3.x readers behind IContractReader: JSON (System.Text.Json) and YAML (YamlDotNet, converted to JSON first).
   GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
+  GapWatch.Roslyn      Maps findings to C# code (controllers, minimal APIs, DTOs) with Microsoft.CodeAnalysis.CSharp; source files only.
   GapWatch.Cli         The `gapwatch` dotnet tool and the gapwatch.json reader. GapWatchCli.Run is console-free and unit tested.
 tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```
 
-Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That is what lets a Roslyn-based reader (DTOs and endpoints from source) be added later without touching a single rule.
+Every source format compiles into one normalized `ApiContract`; rules only ever see that model. Code mapping happens after comparison and policy, on the findings, so it never influences a verdict. A Roslyn reader that builds the contract itself from code could still be added later without touching a single rule.
 
 ## Running the tests
 
@@ -160,7 +181,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
 - **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
-- **Positions are spec positions.** Findings point into the OpenAPI document, not yet at the C# controller, endpoint or DTO that produced it; that mapping is the next v0.3 step.
+- **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
 
 ## Roadmap
 
@@ -168,7 +189,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 |---|---|
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
-| v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), then Roslyn analysis that maps operations and schemas to controllers, minimal API endpoints and contract types |
+| v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
 | v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
 

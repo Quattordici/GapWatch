@@ -6,6 +6,7 @@ using GapWatch.Core.Findings;
 using GapWatch.Core.Policy;
 using GapWatch.OpenApi;
 using GapWatch.Reporting;
+using GapWatch.Roslyn;
 
 namespace GapWatch.Cli;
 
@@ -40,6 +41,8 @@ public static class GapWatchCli
           --fail-on <breaking|warning|none>
                                           Lowest severity that makes the exit code 1 (default: breaking).
           --config <file>                 gapwatch.json with severity overrides and suppressions.
+          --source <dir>                  C# source of the head API. Maps findings to the controller action,
+                                          minimal API endpoint, parameter or DTO property behind them.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change.
@@ -98,7 +101,7 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
@@ -117,6 +120,10 @@ public static class GapWatchCli
         var baseline = ContractLoader.Load(baselinePath);
         var head = ContractLoader.Load(headPath);
         var result = policy.Apply(new ContractComparer().Compare(baseline, head));
+        if (options.Values.TryGetValue("--source", out var sourceDirectory))
+        {
+            result = CodeMap.Load(sourceDirectory).Annotate(result);
+        }
 
         IReportRenderer renderer = format switch
         {
