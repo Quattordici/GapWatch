@@ -48,10 +48,13 @@ public static class GapWatchCli
           --write-baseline <file>         Write every current finding to a baseline file, then report with it.
           --base-ref <rev>                Read <base> from a git revision (e.g. origin/main) instead of the working
                                           tree. <base> is then a path in the repository, usually the same as <head>.
+          --input <openapi|csharp>        What <base> and <head> are (default: openapi). With csharp, they are folders
+                                          of ASP.NET Core source and the contract is read from the code.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change. With one document per API version, pass two folders: documents
         pair by info.version (or by file name), and a document on one side only is a removed or added version.
+        With --input csharp, pass two source folders (or one folder twice with --base-ref).
 
         Exit codes:
           0  no finding at or above the --fail-on threshold
@@ -107,13 +110,14 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline", "--base-ref"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline", "--base-ref", "--input"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
         }
 
         var format = options.Format();
+        var input = options.Input();
 
         var configuration = options.Values.TryGetValue("--config", out var configPath)
             ? ConfigFile.LoadConfiguration(configPath)
@@ -124,7 +128,9 @@ public static class GapWatchCli
         var headPath = options.Positional[1];
 
         options.Values.TryGetValue("--base-ref", out var baseRef);
-        var (baseContract, head, fallbackHeadDocument) = LoadInputs(basePath, headPath, baseRef);
+        var (baseContract, head, fallbackHeadDocument) = input == "csharp"
+            ? LoadSources(basePath, headPath, baseRef)
+            : LoadInputs(basePath, headPath, baseRef);
         var baseLabel = baseRef is null ? basePath : $"{baseRef}:{basePath}";
         var result = new ContractComparer().Compare(baseContract, head);
         result = ApiVersionAnalyzer.Apply(baseContract, head, result, configuration.Versioning);
@@ -203,6 +209,21 @@ public static class GapWatchCli
         var baseDocuments = baseRef is null ? ContractLoader.LoadFolder(basePath) : GitRevision.LoadFolder(baseRef, basePath);
         var (combinedBase, head) = VersionedDocuments.Combine(baseDocuments, headDocuments);
         return (combinedBase, head, headDocuments[0].Path);
+    }
+
+    /// <summary>Two folders of C# source (<c>--input csharp</c>); the contract is read from the code.</summary>
+    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head, string? FallbackHeadDocument) LoadSources(
+        string basePath, string headPath, string? baseRef)
+    {
+        if (!Directory.Exists(headPath) || (baseRef is null && !Directory.Exists(basePath)))
+        {
+            throw new UsageException("--input csharp needs <base> and <head> to be folders of C# source.");
+        }
+
+        var baseContract = baseRef is null
+            ? CSharpContractReader.Load(basePath)
+            : CSharpContractReader.FromSources(GitRevision.ReadSources(baseRef, basePath));
+        return (baseContract, CSharpContractReader.Load(headPath), null);
     }
 
     private static int Rules(string[] args, TextWriter output, TextWriter error)
@@ -302,6 +323,14 @@ public static class GapWatchCli
             return format is "console" or "markdown" or "sarif" or "junit"
                 ? format
                 : throw new UsageException($"Unknown format '{format}'. Use 'console', 'markdown', 'sarif' or 'junit'.");
+        }
+
+        public string Input()
+        {
+            var input = Values.GetValueOrDefault("--input", "openapi").ToLowerInvariant();
+            return input is "openapi" or "csharp"
+                ? input
+                : throw new UsageException($"Unknown input '{input}'. Use 'openapi' or 'csharp'.");
         }
 
         /// <summary>

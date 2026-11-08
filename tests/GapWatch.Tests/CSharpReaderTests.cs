@@ -336,6 +336,72 @@ public sealed class CSharpReaderTests
         finding.Position.ShouldBe(new SourcePosition(11, 38) { File = "Api.cs" });
     }
 
+    // --- API versions (Asp.Versioning) ---------------------------------------------------------------------------
+
+    private const string Versioned = """
+        [ApiController]
+        [ApiVersion("1.0", Deprecated = true)]
+        [ApiVersion("2.0")]
+        [Route("api/v{version:apiVersion}/pets")]
+        public sealed class PetsController : ControllerBase
+        {
+            [HttpGet] public IActionResult List() => Ok();
+            [HttpGet("{id}"), MapToApiVersion("2.0")] public IActionResult Get(long id) => Ok();
+        }
+
+        [ApiController]
+        [ApiVersion(3.0)]
+        [Route("owners")]
+        public sealed class OwnersController : ControllerBase
+        {
+            [HttpGet] public IActionResult List() => Ok();
+        }
+        """;
+
+    [Test]
+    public void Api_versions_expand_into_the_path_or_onto_the_operation()
+    {
+        var contract = Read(Versioned);
+
+        Operations(contract).ShouldBe("GET /api/v1/pets, GET /api/v2/pets, GET /api/v2/pets/{id}, GET /owners [3.0]");
+        string.Join(", ", contract.Operations.Where(o => o.Deprecated).Select(o => o.Display)).ShouldBe("GET /api/v1/pets");
+        Parameters(contract.Operations.Single(o => o.Display == "GET /api/v2/pets/{id}")).ShouldBe("id path! integer/int64");
+    }
+
+    [Test]
+    public void Minimal_api_versions_come_from_the_endpoint_conventions()
+    {
+        var contract = Read("""
+            public static class Endpoints
+            {
+                public static void Map(WebApplication app) =>
+                    app.MapGet("/v{version:apiVersion}/pets", () => Results.Ok()).HasApiVersion(new ApiVersion(1, 0)).HasDeprecatedApiVersion(0.9);
+            }
+            """);
+
+        Operations(contract).ShouldBe("GET /v0.9/pets, GET /v1/pets");
+        contract.Operations.Single(o => o.Path == "/v0.9/pets").Deprecated.ShouldBeTrue();
+    }
+
+    private static string VersionDiff(string before, string after)
+    {
+        var (was, now) = (Read(before), Read(after));
+        var result = ApiVersionAnalyzer.Apply(was, now, new ContractComparer().Compare(was, now), VersioningOptions.Default);
+        return string.Join(",", result.Findings.Select(f => f.Rule.Id).Order(StringComparer.Ordinal));
+    }
+
+    [Test]
+    public void Removing_a_version_attribute_retires_the_version_and_adding_one_is_info()
+    {
+        var withoutV1 = Versioned.Replace("""[ApiVersion("1.0", Deprecated = true)]""", "", StringComparison.Ordinal);
+        var v1Live = Versioned.Replace(", Deprecated = true", "", StringComparison.Ordinal);
+
+        VersionDiff(Versioned, withoutV1).ShouldBe("GW061");
+        VersionDiff(v1Live, withoutV1).ShouldBe("GW060");
+        VersionDiff(withoutV1, Versioned).ShouldBe("GW062");
+        VersionDiff(v1Live, Versioned).ShouldBe("GW063");
+    }
+
     [Test]
     public void The_fixture_project_reads_without_errors()
     {

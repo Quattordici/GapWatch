@@ -23,6 +23,7 @@ The short version: **pin the tool version** in your build (see [CI integration](
 
 - **Wording.** Finding messages, rule descriptions, the console layout and the Markdown tables can improve in any release. Baselines use the message only to tell apart findings at the same place, so a reworded message does not invalidate them.
 - **Positions and code locations.** Line and column numbers, and the code a finding is mapped to with `--source`, can get more precise in any release.
+- **How C# maps to the contract.** With `--input csharp`, what the reader infers from code (binding, required, responses, schemas) can get more precise in any release, like a rule that detects more. Release notes list each change. The operation and location strings it produces follow the same contract as for documents.
 - **The .NET libraries.** `GapWatch.Core`, `GapWatch.OpenApi`, `GapWatch.Reporting` and `GapWatch.Roslyn` are not published as packages, and their APIs can change in any release.
 - **Order of findings** within a severity. It is deterministic for a given version but may change between versions.
 
