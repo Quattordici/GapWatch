@@ -13,8 +13,9 @@ GapWatch detects breaking changes between two versions of an HTTP API contract. 
 - Every source format compiles into the normalized `ApiContract`. Rules only see that model. Never let reader-specific types leak into `GapWatch.Core`.
 - Configuration (severity overrides, disabled rules, justified suppressions) is applied **after** comparison by `CompatibilityPolicy.Apply`. Rules never read configuration. Reading `gapwatch.json` lives in `GapWatch.Cli` (`ConfigFile`).
 - Comparison is **direction-aware** (`Direction.Request` vs `Direction.Response`). Every new rule must state which direction it applies to and why.
-- Rule ids (`GWnnn`) are public and permanent: never renumber, reuse or change the meaning of one. Add new ids at the end of their group, and update the count in `RuleCatalogTests`.
+- Rule ids (`GWnnn`) are public and permanent: never renumber, reuse or change the meaning of one. Add new ids at the end of their group, and append the rule to `ReleasedRules` in `PublicContractTests`; never edit or remove a line there.
 - `GapWatchCli.Run` stays free of `Console` so it remains testable. Exit codes (0, 1, 2) are a public contract.
+- From 1.0, `docs/compatibility.md` defines what is stable and which release may change it. Check every change against it, and say when one needs a major release.
 
 ## When adding or changing a rule
 
