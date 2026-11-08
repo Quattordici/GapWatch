@@ -10,9 +10,7 @@ namespace GapWatch.Roslyn;
 /// </summary>
 internal static class SourceCompilation
 {
-    private static readonly string[] ExcludedDirectories = ["bin", "obj", ".git", "node_modules"];
-
-    /// <summary>Every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c>, <c>obj</c> and <c>.git</c>, ordered by path.</summary>
+    /// <summary>Every <c>.cs</c> file under <paramref name="directory"/>, skipping what <see cref="CSharpContractReader.IsSourceFile"/> excludes, ordered by path.</summary>
     /// <exception cref="DirectoryNotFoundException">The directory does not exist.</exception>
     public static IEnumerable<(string Path, string Text)> ReadDirectory(string directory)
     {
@@ -24,9 +22,7 @@ internal static class SourceCompilation
 
         return Directory
             .EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !Path.GetRelativePath(directory, path)
-                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Any(segment => ExcludedDirectories.Contains(segment, StringComparer.OrdinalIgnoreCase)))
+            .Where(path => CSharpContractReader.IsSourceFile(Path.GetRelativePath(directory, path)))
             .Order(StringComparer.Ordinal)
             .Select(path => (path.Replace('\\', '/'), File.ReadAllText(path)))
             .ToList();

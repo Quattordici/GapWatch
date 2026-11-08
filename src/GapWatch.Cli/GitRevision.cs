@@ -2,77 +2,56 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Text;
 using GapWatch.Core;
-using GapWatch.Core.Comparison;
-using GapWatch.Core.Model;
-using GapWatch.OpenApi;
 
 namespace GapWatch.Cli;
 
 /// <summary>
-/// Reads the base contract from a git revision (<c>--base-ref</c>), so a pull request build needs no separate step to
-/// extract it. It only reads: <c>git cat-file</c>, <c>git ls-tree</c>, <c>git rev-parse</c> and <c>git show</c>. Nothing
-/// is checked out or written.
+/// A git revision as a <see cref="ISourceTree"/> (<c>--base-ref</c>), so a pull request build needs no separate step to
+/// extract the base. It only reads: <c>git cat-file</c>, <c>git ls-tree</c> and <c>git rev-parse</c>. Nothing is checked
+/// out or written.
 /// </summary>
 /// <remarks>
-/// The path is resolved like any file path (relative to the current directory, or absolute), and git runs in its nearest
-/// folder that exists in the working tree, so the path may be one the head has deleted. Reports show the base as
-/// <c>rev:path</c>, with the path as given.
+/// A path is resolved like any file path (relative to the current directory, or absolute), and git runs in the path
+/// itself when it is a folder that exists, otherwise in its nearest folder that does. So the path may be one the head
+/// has deleted, or the repository root. Labels are <c>rev:path</c>, with the path as given.
 /// </remarks>
-internal static class GitRevision
+internal sealed class GitRevision(string revision) : ISourceTree
 {
-    /// <summary>Whether <paramref name="path"/> at <paramref name="revision"/> is a folder (a git tree).</summary>
+    /// <inheritdoc />
     /// <exception cref="ContractReadException">git is missing, the revision is unknown, or the path does not exist there.</exception>
-    public static bool IsFolder(string revision, string path) =>
-        Text(Run(path, ["cat-file", "-t", Spec(revision, path)], $"'{path}' does not exist at revision '{revision}'")).Trim() == "tree";
-
-    /// <summary>Reads one document at the revision.</summary>
-    public static ApiContract Load(string revision, string path)
+    public EntryKind Kind(string path)
     {
-        using var content = new MemoryStream(Run(path, ["show", Spec(revision, path)], $"Could not read '{path}' at revision '{revision}'"));
-        return ContractLoader.Load(path, content);
-    }
-
-    /// <summary>Reads every supported document directly in the folder at the revision, ordered by file name.</summary>
-    public static IReadOnlyList<NamedContract> LoadFolder(string revision, string path)
-    {
-        var folder = path.Replace('\\', '/').TrimEnd('/');
-        var names = Text(Run(path, ["ls-tree", "--name-only", "--full-tree", Spec(revision, folder) + "/"], $"Could not list '{path}' at revision '{revision}'"))
-            .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(name => name[(name.LastIndexOf('/') + 1)..])
-            .Where(ContractLoader.IsSupported)
-            .Order(StringComparer.Ordinal)
-            .ToList();
-
-        return names.Count > 0
-            ? names.Select(name => new NamedContract($"{revision}:{folder}/{name}", Load(revision, $"{folder}/{name}"))).ToList()
-            : throw new ContractReadException($"No OpenAPI documents (.json, .yaml, .yml) in folder '{path}' at revision '{revision}'.");
-    }
-
-    /// <summary>
-    /// Every <c>.cs</c> file under the folder at the revision (skipping <c>bin</c>, <c>obj</c> and <c>.git</c>), for
-    /// <c>--input csharp</c>. Paths are reported as <c>rev:folder/file.cs</c>. The files are read with one
-    /// <c>git cat-file --batch</c>, so a large project costs three git processes, not one per file.
-    /// </summary>
-    public static IReadOnlyList<(string Path, string Text)> ReadSources(string revision, string path)
-    {
-        var full = Path.GetFullPath(path);
-        var directory = Directory.Exists(full) ? full : WorkingDirectory(full);
-        var prefix = Text(RunIn(directory, ["rev-parse", "--show-prefix"], $"'{path}' is not in a git repository")).Trim();
-        var rest = Path.GetRelativePath(directory, full).Replace('\\', '/');
-        var tree = $"{revision}:{(prefix + (rest == "." ? string.Empty : rest)).TrimEnd('/')}";
-
-        var kind = Text(RunIn(directory, ["cat-file", "-t", tree], $"'{path}' does not exist at revision '{revision}'")).Trim();
-        if (kind != "tree")
+        var (directory, spec) = Resolve(path);
+        return Text(RunIn(directory, ["cat-file", "-t", spec], $"'{path}' does not exist at revision '{revision}'")).Trim() switch
         {
-            throw new ContractReadException($"'{path}' is not a folder at revision '{revision}'; --input csharp needs a folder of C# source.");
-        }
+            "tree" => EntryKind.Folder,
+            "blob" => EntryKind.File,
+            _ => EntryKind.Missing,
+        };
+    }
+
+    /// <inheritdoc />
+    public SourceFile Read(string path)
+    {
+        var (directory, spec) = Resolve(path);
+        var content = RunIn(directory, ["cat-file", "blob", spec], $"Could not read '{path}' at revision '{revision}'");
+        return new SourceFile($"{revision}:{path.Replace('\\', '/')}", Path.GetFileName(path), content);
+    }
+
+    /// <inheritdoc />
+    /// <remarks>Lists the tree once and reads every file with one <c>git cat-file --batch</c>, so a large folder costs two git processes.</remarks>
+    public IReadOnlyList<SourceFile> ReadFolder(string folder, bool recursive, Func<string, bool> include)
+    {
+        ArgumentNullException.ThrowIfNull(include);
+
+        var (directory, spec) = Resolve(folder);
+        string[] list = recursive ? ["ls-tree", "-r", "-z", "--full-tree", spec] : ["ls-tree", "-z", "--full-tree", spec];
 
         // <mode> SP <type> SP <object> TAB <path> NUL
-        var files = Text(RunIn(directory, ["ls-tree", "-r", "-z", "--full-tree", tree], $"Could not list '{path}' at revision '{revision}'"))
+        var files = Text(RunIn(directory, list, $"Could not list '{folder}' at revision '{revision}'"))
             .Split('\0', StringSplitOptions.RemoveEmptyEntries)
             .Select(entry => (Header: entry[..entry.IndexOf('\t')].Split(' '), File: entry[(entry.IndexOf('\t') + 1)..]))
-            .Where(e => e.Header is [_, "blob", _] && e.File.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)
-                        && !e.File.Split('/').SkipLast(1).Any(segment => segment is "bin" or "obj" or ".git" or "node_modules"))
+            .Where(e => e.Header is [_, "blob", _] && include(e.File))
             .OrderBy(e => e.File, StringComparer.Ordinal)
             .ToList();
         if (files.Count == 0)
@@ -81,33 +60,37 @@ internal static class GitRevision
         }
 
         var input = Encoding.ASCII.GetBytes(string.Concat(files.Select(f => f.Header[2] + "\n")));
-        var batch = RunIn(directory, ["cat-file", "--batch"], $"Could not read '{path}' at revision '{revision}'", input);
-        var folder = path.Replace('\\', '/').TrimEnd('/');
-        var result = new List<(string, string)>(files.Count);
+        var batch = RunIn(directory, ["cat-file", "--batch"], $"Could not read '{folder}' at revision '{revision}'", input);
+        var label = $"{revision}:{folder.Replace('\\', '/').TrimEnd('/')}";
+        var result = new List<SourceFile>(files.Count);
         var offset = 0;
         foreach (var (_, file) in files)
         {
             // <object> SP blob SP <size> LF <content> LF
             var lineEnd = System.Array.IndexOf(batch, (byte)'\n', offset);
             var size = int.Parse(Encoding.ASCII.GetString(batch, offset, lineEnd - offset).Split(' ')[2], System.Globalization.CultureInfo.InvariantCulture);
-            var text = Encoding.UTF8.GetString(batch, lineEnd + 1, size);
-            result.Add(($"{revision}:{folder}/{file}", text.TrimStart('\uFEFF')));
+            result.Add(new SourceFile($"{label}/{file}", file[(file.LastIndexOf('/') + 1)..], batch[(lineEnd + 1)..(lineEnd + 1 + size)]));
             offset = lineEnd + 1 + size + 1;
         }
 
         return result;
     }
 
-    /// <summary><c>rev:./relative</c>, relative to the folder <see cref="WorkingDirectory"/> picks for the path.</summary>
-    private static string Spec(string revision, string path)
+    /// <summary>
+    /// The folder git runs in, and <c>rev:path-in-repository</c> for <paramref name="path"/>: the path itself when it is
+    /// an existing folder (so the repository root works), otherwise its nearest existing ancestor.
+    /// </summary>
+    private (string Directory, string Spec) Resolve(string path)
     {
         var full = Path.GetFullPath(path);
-        var relative = Path.GetRelativePath(WorkingDirectory(full), full).Replace('\\', '/');
-        return $"{revision}:./{relative}";
+        var directory = Directory.Exists(full) ? full : NearestExistingAncestor(full);
+        var prefix = Text(RunIn(directory, ["rev-parse", "--show-prefix"], $"'{path}' is not in a git repository")).Trim();
+        var rest = Path.GetRelativePath(directory, full).Replace('\\', '/');
+        return (directory, $"{revision}:{(prefix + (rest == "." ? string.Empty : rest)).TrimEnd('/')}");
     }
 
     /// <summary>The nearest ancestor of <paramref name="fullPath"/> that exists on disk.</summary>
-    private static string WorkingDirectory(string fullPath)
+    private static string NearestExistingAncestor(string fullPath)
     {
         var directory = Path.GetDirectoryName(fullPath);
         while (directory is not null && !Directory.Exists(directory))
@@ -119,9 +102,6 @@ internal static class GitRevision
     }
 
     private static string Text(byte[] output) => Encoding.UTF8.GetString(output);
-
-    private static byte[] Run(string path, IReadOnlyList<string> arguments, string failure) =>
-        RunIn(WorkingDirectory(Path.GetFullPath(path)), arguments, failure);
 
     private static byte[] RunIn(string workingDirectory, IReadOnlyList<string> arguments, string failure, byte[]? input = null)
     {

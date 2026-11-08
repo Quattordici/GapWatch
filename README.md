@@ -183,7 +183,7 @@ src/
   GapWatch.OpenApi     OpenAPI 3.x readers behind IContractReader: JSON (System.Text.Json) and YAML (YamlDotNet, converted to JSON first).
   GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
   GapWatch.Roslyn      Reads the contract from C# (--input csharp) and maps findings to C# code (controllers, minimal APIs, DTOs) with Microsoft.CodeAnalysis.CSharp; source files only.
-  GapWatch.Cli         The `gapwatch` dotnet tool and the gapwatch.json reader. GapWatchCli.Run is console-free and unit tested.
+  GapWatch.Cli         The `gapwatch` dotnet tool, the gapwatch.json reader, and ContractInputs, which reads both sides from the working tree or a git revision. GapWatchCli.Run is console-free and unit tested.
 tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```

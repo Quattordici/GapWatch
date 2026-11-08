@@ -98,6 +98,10 @@ public static class GapWatchCli
         {
             return Fail(error, ex.Message);
         }
+        catch (InputException ex)
+        {
+            return Fail(error, ex.Message);
+        }
         catch (IOException ex)
         {
             return Fail(error, ex.Message);
@@ -128,9 +132,9 @@ public static class GapWatchCli
         var headPath = options.Positional[1];
 
         options.Values.TryGetValue("--base-ref", out var baseRef);
-        var (baseContract, head, fallbackHeadDocument) = input == "csharp"
-            ? LoadSources(basePath, headPath, baseRef)
-            : LoadInputs(basePath, headPath, baseRef);
+        ISourceTree baseTree = baseRef is null ? WorkingTree.Instance : new GitRevision(baseRef);
+        var (baseContract, head, fallbackHeadDocument) = ContractInputs.Load(
+            baseTree, basePath, WorkingTree.Instance, headPath, input == "csharp" ? InputKind.CSharp : InputKind.OpenApi);
         var baseLabel = baseRef is null ? basePath : $"{baseRef}:{basePath}";
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)
@@ -183,45 +187,6 @@ public static class GapWatchCli
         return failOn is { } threshold && result.HasAtLeast(threshold)
             ? ExitCodes.FindingsAtThreshold
             : ExitCodes.Success;
-    }
-
-    /// <summary>Two files, or two folders with one document per API version (multi-document mode).</summary>
-    /// <remarks>In folder mode, also returns the first head document, where findings without a head document point.</remarks>
-    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head, string? FallbackHeadDocument) LoadInputs(
-        string basePath, string headPath, string? baseRef)
-    {
-        var baseIsFolder = baseRef is null ? Directory.Exists(basePath) : GitRevision.IsFolder(baseRef, basePath);
-        var headIsFolder = Directory.Exists(headPath);
-        if (baseIsFolder != headIsFolder)
-        {
-            throw new UsageException("compare needs two files, or two folders with one document per API version, not one of each.");
-        }
-
-        if (!baseIsFolder)
-        {
-            var baseContract = baseRef is null ? ContractLoader.Load(basePath) : GitRevision.Load(baseRef, basePath);
-            return (baseContract, ContractLoader.Load(headPath), null);
-        }
-
-        var headDocuments = ContractLoader.LoadFolder(headPath);
-        var baseDocuments = baseRef is null ? ContractLoader.LoadFolder(basePath) : GitRevision.LoadFolder(baseRef, basePath);
-        var (combinedBase, head) = VersionedDocuments.Combine(baseDocuments, headDocuments);
-        return (combinedBase, head, headDocuments[0].Path);
-    }
-
-    /// <summary>Two folders of C# source (<c>--input csharp</c>); the contract is read from the code.</summary>
-    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head, string? FallbackHeadDocument) LoadSources(
-        string basePath, string headPath, string? baseRef)
-    {
-        if (!Directory.Exists(headPath) || (baseRef is null && !Directory.Exists(basePath)))
-        {
-            throw new UsageException("--input csharp needs <base> and <head> to be folders of C# source.");
-        }
-
-        var baseContract = baseRef is null
-            ? CSharpContractReader.Load(basePath)
-            : CSharpContractReader.FromSources(GitRevision.ReadSources(baseRef, basePath));
-        return (baseContract, CSharpContractReader.Load(headPath), null);
     }
 
     private static int Rules(string[] args, TextWriter output, TextWriter error)
