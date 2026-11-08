@@ -34,6 +34,6 @@ public sealed class RuleCatalogTests
     public void The_catalog_contains_the_planned_rules()
     {
         // Guards against accidentally losing rules to a refactoring; update deliberately when rules are added.
-        RuleCatalog.All.Count.ShouldBe(32);
+        RuleCatalog.All.Count.ShouldBe(38);
     }
 }

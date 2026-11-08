@@ -25,6 +25,12 @@ Severity: **Breaking** breaks correct existing consumers, **Warning** can break 
 | GW029 | Breaking | PropertyBecameOptional | Response: a property that was always present may now be missing. |
 | GW030 | Breaking | VariantRemoved | Request: a oneOf/anyOf alternative that was accepted is no longer accepted. |
 | GW031 | Warning | VariantAdded | Response: a new oneOf/anyOf alternative can be returned that consumers may not handle. |
+| GW032 | Breaking | ValueRangeNarrowed | Request: a minLength, maxLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum, minItems or maxItems bound was added or tightened, so values the server accepted are now rejected. |
+| GW033 | Warning | ValueRangeWidened | Response: one of those bounds was removed or loosened. Consumers that sized storage or validation from the contract can fail on the new values. |
+| GW034 | Breaking | PatternAdded | Request: a pattern was added to a value that had none, so strings the server accepted may now be rejected. |
+| GW035 | Warning | PatternChanged | A pattern changed (either direction), or was removed in a response. Whether one regular expression accepts a subset of another is not decided, so review both. |
+| GW036 | Warning | AdditionalPropertiesRestricted | Request: additionalProperties became false, so callers that send extra properties are rejected where the contract is enforced. ASP.NET Core ignores unknown JSON properties by default. |
+| GW037 | Breaking | DiscriminatorChanged | The discriminator property was renamed, or a mapping value now selects another schema (either direction), or a mapping value was removed (request). |
 | GW040 | Breaking | RequiredRequestBodyAdded | A required request body was added to an operation that had none. |
 | GW041 | Breaking | RequestBodyBecameRequired | An optional request body became required. |
 | GW042 | Warning | RequestBodyRemoved | The request body was removed. Callers that still send one may be rejected or ignored. |

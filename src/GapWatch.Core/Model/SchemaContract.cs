@@ -33,6 +33,36 @@ public sealed record SchemaContract
     /// <summary><c>oneOf</c> / <c>anyOf</c> alternatives (a bare <c>null</c> alternative becomes <see cref="Nullable"/>).</summary>
     public IReadOnlyList<SchemaContract> Variants { get; init; } = [];
 
+    /// <summary><c>minLength</c> for strings.</summary>
+    public Bound? MinLength { get; init; }
+
+    /// <summary><c>maxLength</c> for strings.</summary>
+    public Bound? MaxLength { get; init; }
+
+    /// <summary><c>minItems</c> for arrays.</summary>
+    public Bound? MinItems { get; init; }
+
+    /// <summary><c>maxItems</c> for arrays.</summary>
+    public Bound? MaxItems { get; init; }
+
+    /// <summary>
+    /// Lower bound for numbers: <c>minimum</c>, or <c>exclusiveMinimum</c> in either the OpenAPI 3.0 form (a flag on
+    /// <c>minimum</c>) or the 3.1 form (a number of its own).
+    /// </summary>
+    public Bound? Minimum { get; init; }
+
+    /// <summary>Upper bound for numbers, normalized like <see cref="Minimum"/>.</summary>
+    public Bound? Maximum { get; init; }
+
+    /// <summary>The <c>pattern</c> regular expression, exactly as written.</summary>
+    public string? Pattern { get; init; }
+
+    /// <summary>False when <c>additionalProperties: false</c>; absent, <c>true</c> or a schema all allow extra properties.</summary>
+    public bool AdditionalPropertiesAllowed { get; init; } = true;
+
+    /// <summary>The <c>discriminator</c> of a polymorphic schema, if any.</summary>
+    public Discriminator? Discriminator { get; init; }
+
     /// <summary>Name of the component schema this node came from, when it came from a <c>$ref</c>.</summary>
     public string? ReferenceName { get; init; }
 
@@ -56,3 +86,24 @@ public sealed record PropertyContract(SchemaContract Schema, bool Required, bool
     /// <summary>Where the property name is declared, which differs from the schema's position when it is a <c>$ref</c>.</summary>
     public SourcePosition? Position { get; init; }
 }
+
+/// <summary>A lower or upper bound of a length, an item count or a number.</summary>
+/// <param name="Value">The limit.</param>
+/// <param name="Exclusive">True when the limit itself is not allowed (only for numbers).</param>
+public sealed record Bound(double Value, bool Exclusive = false)
+{
+    /// <summary>Whether this lower bound allows fewer values than <paramref name="other"/> (it is tighter).</summary>
+    public bool IsTighterMinimumThan(Bound other) => Value > other.Value || (Value == other.Value && Exclusive && !other.Exclusive);
+
+    /// <summary>Whether this upper bound allows fewer values than <paramref name="other"/> (it is tighter).</summary>
+    public bool IsTighterMaximumThan(Bound other) => Value < other.Value || (Value == other.Value && Exclusive && !other.Exclusive);
+
+    /// <summary><c>5</c>, or <c>5 (exclusive)</c>.</summary>
+    public override string ToString() =>
+        Value.ToString(System.Globalization.CultureInfo.InvariantCulture) + (Exclusive ? " (exclusive)" : string.Empty);
+}
+
+/// <summary>The <c>discriminator</c> object: which property selects the subtype, and which value means which schema.</summary>
+/// <param name="PropertyName">The property that carries the subtype name.</param>
+/// <param name="Mapping">Property value to component schema name (from <c>#/components/schemas/Name</c>), sorted by value.</param>
+public sealed record Discriminator(string PropertyName, IReadOnlyDictionary<string, string> Mapping);

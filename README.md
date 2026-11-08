@@ -31,7 +31,7 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
@@ -43,13 +43,14 @@ gapwatch --version | --help
 - `--output` writes the report to a file and prints a one-line summary.
 - `--config` reads a `gapwatch.json` with severity overrides and suppressions (see [Configuration](#configuration)).
 - `--baseline` accepts the findings listed in a baseline file, and `--write-baseline` writes one from the current run. Baselines are for adopting GapWatch against a base that is far behind, such as the last release (see [Configuration](docs/configuration.md#baselines)).
+- `--base-ref` reads `<base>` from a git revision instead of the working tree, e.g. `gapwatch compare api/openapi.json api/openapi.json --base-ref origin/main`. It works for files and folders, and only reads from git.
 - `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No finding at or above the `--fail-on` threshold (default threshold: `breaking`). |
+| 0 | No finding at or above the `--fail-on` threshold (default threshold: `breaking`, or `failOn` in `gapwatch.json`). |
 | 1 | At least one finding at or above the threshold. |
 | 2 | Usage error or unreadable input. |
 
@@ -138,7 +139,7 @@ Every suppression needs a justification. Suppressed findings leave the exit code
 
 ## Rules
 
-32 rules across operations, parameters, schemas, bodies, responses, security and API versions. See [docs/rules.md](docs/rules.md), or run `gapwatch rules`. Rule ids are stable: they never change meaning and are never reused.
+38 rules across operations, parameters, schemas (including value constraints), bodies, responses, security and API versions. See [docs/rules.md](docs/rules.md), or run `gapwatch rules`. Rule ids are stable: they never change meaning and are never reused.
 
 ### API versions
 
@@ -168,6 +169,10 @@ A version is removed only when no operation in the head has it any more; removin
 | `integer` widened to `number` | Safe | Breaking |
 | `int32` widened to `int64` | Safe | Breaking |
 | Non-nullable becomes nullable | Safe | Breaking |
+| `maxLength`, `maximum` or `maxItems` lowered (or `min*` raised) | Breaking | Safe |
+| Such a bound raised or removed | Safe | Warning |
+| `pattern` added | Breaking | Safe |
+| `additionalProperties: false` added | Warning | Safe |
 
 ## Architecture
 
@@ -194,9 +199,8 @@ To regenerate the golden reports after an intentional output change, run the tes
 
 - **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
-- **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
-- **Two files or two folders in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
-- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version has no place in the head, so its SARIF result points at the head folder.
+- **Common value constraints only.** Length, item-count and numeric bounds, `pattern`, `additionalProperties: false` and `discriminator` are compared (GW032 to GW037). `multipleOf`, `uniqueItems`, `minProperties`, `maxProperties` and `const` are not. Whether one `pattern` accepts a subset of another is not decided, so a changed pattern is a Warning to review.
+- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version exists in no head document, so its SARIF result points at the first head document, line 1, as a removed operation does.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
 
@@ -208,6 +212,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
 | v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
 | v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules and folder mode (done) |
+| v0.5 | Value-constraint rules GW032 to GW037 (done), `failOn` and suppression expiry in `gapwatch.json` (done), `--base-ref` (done) |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
 
 ## License

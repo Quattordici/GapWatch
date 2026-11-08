@@ -16,6 +16,13 @@ public sealed record ReportContext(string BaseLabel, string HeadLabel)
     /// The <c>--fail-on</c> threshold, for formats that mark findings as failed (JUnit). <c>null</c> means nothing fails.
     /// </summary>
     public Severity? FailOn { get; init; } = Severity.Breaking;
+
+    /// <summary>
+    /// In multi-document mode, the head document a location falls back to when a finding has no
+    /// <see cref="Finding.Document"/> (a removed API version exists in no head document). Null for a single head
+    /// document, where <see cref="HeadLabel"/> is that document.
+    /// </summary>
+    public string? FallbackHeadDocument { get; init; }
 }
 
 /// <summary>Turns a <see cref="ComparisonResult"/> into text.</summary>
@@ -104,7 +111,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
 
         if (result.UnusedSuppressions.Count > 0)
         {
-            text.Append("\nUNUSED SUPPRESSIONS (").Append(result.UnusedSuppressions.Count).Append(") - they match nothing; remove them from gapwatch.json, or rewrite the baseline\n");
+            text.Append("\nUNUSED SUPPRESSIONS (").Append(result.UnusedSuppressions.Count).Append(") - they match nothing or have expired; remove them from gapwatch.json, or rewrite the baseline\n");
             foreach (var suppression in result.UnusedSuppressions)
             {
                 text.Append("  ").Append(suppression.Describe()).Append('\n');
@@ -201,7 +208,7 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         }
 
         text.Append("\n> [!NOTE]\n> ").Append(result.UnusedSuppressions.Count)
-            .Append(" suppression(s) matched nothing. Remove them from `gapwatch.json`, or rewrite the baseline for `baseline:` entries:\n");
+            .Append(" suppression(s) matched nothing or have expired. Remove them from `gapwatch.json`, or rewrite the baseline for `baseline:` entries:\n");
         foreach (var suppression in result.UnusedSuppressions)
         {
             text.Append("> - `").Append(Code(suppression.Describe())).Append("`\n");

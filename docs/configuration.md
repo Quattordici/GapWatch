@@ -24,9 +24,13 @@ The file is optional; without it every rule reports with its default severity. G
       "rule": "GW025",
       "operation": "GET /pets",
       "location": "response 200 application/json: $[].nickname",
-      "justification": "Never populated in production; removal agreed with all consumers (ADR-12)."
+      "justification": "Never populated in production; removal agreed with all consumers (ADR-12).",
+      "expires": "2027-01-01" // optional: reported again from this date
     }
   ],
+
+  // Lowest severity that fails the build: "breaking" (default), "warning" or "none". --fail-on wins over it.
+  "failOn": "breaking",
 
   // How API versions are recognized (the defaults shown match Asp.Versioning). Or "versioning": false.
   "versioning": {
@@ -56,6 +60,9 @@ Use an override when your organisation judges a whole rule differently from the 
 | `justification` | yes | Why the change is acceptable. Must not be blank; it is printed next to the suppressed finding in every report. |
 | `operation` | no | Operation as shown in the report, e.g. `GET /pets/{id}`. Omit to match every operation. |
 | `location` | no | Location as shown in the report, e.g. `parameter 'q' (query)`. Omit to match every location. |
+| `expires` | no | A date (`yyyy-MM-dd`, UTC). From that day the suppression no longer applies: its findings count again, and it is listed with the unused suppressions so it can be removed or renewed. |
+
+Use `expires` for changes that are accepted for a while, such as "clients have until the end of the quarter to move". The date is checked against today's date in UTC, so the same run on a later day can fail. That is the point of an expiry, but it means a build can turn red without a code change.
 
 `operation` and `location` match literally and case-sensitively, except that `*` matches any run of characters (`GET /pets*`, `*.nickname`). Copy the values from a report to get them right.
 
@@ -121,7 +128,11 @@ The `versioning` section controls how GW060 to GW063 find the API version of an 
 
 Severity overrides, suppressions and baselines apply to the version findings like to any other: to treat retiring a deprecated version as expected, set `"GW061": "info"` and keep GW060 Breaking.
 
+## Failing the build
+
+`failOn` sets the lowest severity that makes the exit code 1: `breaking` (the default), `warning` or `none`. The `--fail-on` option wins over it, so a pipeline can still tighten or relax one run.
+
 ## Not supported yet
 
-- Discovering `gapwatch.json` automatically, and setting `--fail-on` or the format from the file.
-- Expiry dates on suppressions.
+- Discovering `gapwatch.json` automatically. A build should not change behaviour because a file happened to be present, so the file is always passed with `--config`.
+- Setting the report format from the file.

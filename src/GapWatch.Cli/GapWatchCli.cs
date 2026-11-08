@@ -39,12 +39,15 @@ public static class GapWatchCli
                                           Output format (default: console).
           --output <file>                 Write the report to a file instead of stdout.
           --fail-on <breaking|warning|none>
-                                          Lowest severity that makes the exit code 1 (default: breaking).
+                                          Lowest severity that makes the exit code 1 (default: breaking, or
+                                          failOn in the config file).
           --config <file>                 gapwatch.json with severity overrides and suppressions.
           --source <dir>                  C# source of the head API. Maps findings to the controller action,
                                           minimal API endpoint, parameter or DTO property behind them.
           --baseline <file>               Accept the findings listed in a baseline file (exact matches only).
           --write-baseline <file>         Write every current finding to a baseline file, then report with it.
+          --base-ref <rev>                Read <base> from a git revision (e.g. origin/main) instead of the working
+                                          tree. <base> is then a path in the repository, usually the same as <head>.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change. With one document per API version, pass two folders: documents
@@ -104,26 +107,28 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline", "--base-ref"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
         }
 
         var format = options.Format();
-        var failOn = options.FailOn();
 
         var configuration = options.Values.TryGetValue("--config", out var configPath)
             ? ConfigFile.LoadConfiguration(configPath)
             : GapWatchConfiguration.Default;
+        var failOn = options.FailOn(configuration.FailOn);
 
         var basePath = options.Positional[0];
         var headPath = options.Positional[1];
 
-        var (baseContract, head) = LoadInputs(basePath, headPath);
+        options.Values.TryGetValue("--base-ref", out var baseRef);
+        var (baseContract, head, fallbackHeadDocument) = LoadInputs(basePath, headPath, baseRef);
+        var baseLabel = baseRef is null ? basePath : $"{baseRef}:{basePath}";
         var result = new ContractComparer().Compare(baseContract, head);
         result = ApiVersionAnalyzer.Apply(baseContract, head, result, configuration.Versioning);
-        result = configuration.Policy.Apply(result);
+        result = (configuration.Policy with { Today = DateOnly.FromDateTime(DateTime.UtcNow) }).Apply(result);
 
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)
@@ -152,7 +157,12 @@ public static class GapWatchCli
             "junit" => new JUnitReportRenderer(),
             _ => new ConsoleReportRenderer(),
         };
-        var context = new ReportContext(basePath, headPath) { ToolVersion = ToolVersion(), FailOn = failOn };
+        var context = new ReportContext(baseLabel, headPath)
+        {
+            ToolVersion = ToolVersion(),
+            FailOn = failOn,
+            FallbackHeadDocument = fallbackHeadDocument,
+        };
         var report = renderer.Render(result, context);
 
         if (options.Values.TryGetValue("--output", out var outputPath))
@@ -172,18 +182,27 @@ public static class GapWatchCli
     }
 
     /// <summary>Two files, or two folders with one document per API version (multi-document mode).</summary>
-    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head) LoadInputs(string basePath, string headPath)
+    /// <remarks>In folder mode, also returns the first head document, where findings without a head document point.</remarks>
+    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head, string? FallbackHeadDocument) LoadInputs(
+        string basePath, string headPath, string? baseRef)
     {
-        var baseIsFolder = Directory.Exists(basePath);
+        var baseIsFolder = baseRef is null ? Directory.Exists(basePath) : GitRevision.IsFolder(baseRef, basePath);
         var headIsFolder = Directory.Exists(headPath);
         if (baseIsFolder != headIsFolder)
         {
             throw new UsageException("compare needs two files, or two folders with one document per API version, not one of each.");
         }
 
-        return baseIsFolder
-            ? VersionedDocuments.Combine(ContractLoader.LoadFolder(basePath), ContractLoader.LoadFolder(headPath))
-            : (ContractLoader.Load(basePath), ContractLoader.Load(headPath));
+        if (!baseIsFolder)
+        {
+            var baseContract = baseRef is null ? ContractLoader.Load(basePath) : GitRevision.Load(baseRef, basePath);
+            return (baseContract, ContractLoader.Load(headPath), null);
+        }
+
+        var headDocuments = ContractLoader.LoadFolder(headPath);
+        var baseDocuments = baseRef is null ? ContractLoader.LoadFolder(basePath) : GitRevision.LoadFolder(baseRef, basePath);
+        var (combinedBase, head) = VersionedDocuments.Combine(baseDocuments, headDocuments);
+        return (combinedBase, head, headDocuments[0].Path);
     }
 
     private static int Rules(string[] args, TextWriter output, TextWriter error)
@@ -285,9 +304,12 @@ public static class GapWatchCli
                 : throw new UsageException($"Unknown format '{format}'. Use 'console', 'markdown', 'sarif' or 'junit'.");
         }
 
-        /// <summary>Returns the threshold, or <c>null</c> when failing is disabled.</summary>
-        public Severity? FailOn() =>
-            Values.GetValueOrDefault("--fail-on", "breaking").ToLowerInvariant() switch
+        /// <summary>
+        /// Returns the threshold, or <c>null</c> when failing is disabled. The option wins over the configured value, which
+        /// wins over the default, <c>breaking</c>.
+        /// </summary>
+        public Severity? FailOn(string? configured) =>
+            Values.GetValueOrDefault("--fail-on", configured ?? "breaking").ToLowerInvariant() switch
             {
                 "breaking" => Severity.Breaking,
                 "warning" => Severity.Warning,

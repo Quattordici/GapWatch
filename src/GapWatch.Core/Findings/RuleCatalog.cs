@@ -69,6 +69,24 @@ public static class RuleCatalog
     public static readonly RuleDescriptor VariantAdded = new("GW031", nameof(VariantAdded), Severity.Warning,
         "Response: a new oneOf/anyOf alternative can be returned that consumers may not handle.");
 
+    public static readonly RuleDescriptor ValueRangeNarrowed = new("GW032", nameof(ValueRangeNarrowed), Severity.Breaking,
+        "Request: a minLength, maxLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum, minItems or maxItems bound was added or tightened, so values the server accepted are now rejected.");
+
+    public static readonly RuleDescriptor ValueRangeWidened = new("GW033", nameof(ValueRangeWidened), Severity.Warning,
+        "Response: one of those bounds was removed or loosened. Consumers that sized storage or validation from the contract can fail on the new values.");
+
+    public static readonly RuleDescriptor PatternAdded = new("GW034", nameof(PatternAdded), Severity.Breaking,
+        "Request: a pattern was added to a value that had none, so strings the server accepted may now be rejected.");
+
+    public static readonly RuleDescriptor PatternChanged = new("GW035", nameof(PatternChanged), Severity.Warning,
+        "A pattern changed (either direction), or was removed in a response. Whether one regular expression accepts a subset of another is not decided, so review both.");
+
+    public static readonly RuleDescriptor AdditionalPropertiesRestricted = new("GW036", nameof(AdditionalPropertiesRestricted), Severity.Warning,
+        "Request: additionalProperties became false, so callers that send extra properties are rejected where the contract is enforced. ASP.NET Core ignores unknown JSON properties by default.");
+
+    public static readonly RuleDescriptor DiscriminatorChanged = new("GW037", nameof(DiscriminatorChanged), Severity.Breaking,
+        "The discriminator property was renamed, or a mapping value now selects another schema (either direction), or a mapping value was removed (request).");
+
     // --- Bodies and responses -----------------------------------------------------------------------------------
 
     public static readonly RuleDescriptor RequiredRequestBodyAdded = new("GW040", nameof(RequiredRequestBodyAdded), Severity.Breaking,

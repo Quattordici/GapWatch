@@ -127,4 +127,20 @@ public sealed class ConfigFileTests
         ErrorFor("""{ "versioning": { "parameters": "api-version" } }""").ShouldContain("$.versioning.parameters must be an array");
         ErrorFor("""{ "versioning": true }""").ShouldContain("$.versioning must be an object");
     }
+
+    [Test]
+    public void Fail_on_and_suppression_expiry_are_read_and_validated()
+    {
+        var configuration = ConfigFile.ParseConfiguration(
+            """{ "failOn": "Warning", "suppressions": [ { "rule": "GW001", "justification": "j", "expires": "2026-12-31" } ] }""",
+            "gapwatch.json");
+
+        configuration.FailOn.ShouldBe("warning");
+        configuration.Policy.Suppressions[0].Expires.ShouldBe(new DateOnly(2026, 12, 31));
+        ConfigFile.ParseConfiguration("{}", "gapwatch.json").FailOn.ShouldBeNull();
+
+        ErrorFor("""{ "failOn": "error" }""").ShouldContain("$.failOn has value 'error'");
+        ErrorFor("""{ "suppressions": [ { "rule": "GW001", "justification": "j", "expires": "31.12.2026" } ] }""")
+            .ShouldContain("$.suppressions[0].expires must be a date like 2026-12-31");
+    }
 }

@@ -298,6 +298,13 @@ public sealed class CliTests
         output.ShouldContain("[GW062] GET /pets [3.0]\n");
         output.ShouldContain("at " + Path.Join(dir.Path, "head").Replace('\\', '/') + "/v3.yaml:5:5\n");
         output.ShouldNotContain("GW001");
+
+        var sarif = Path.Join(dir.Path, "report.sarif");
+        Run("compare", Path.Join(dir.Path, "base"), Path.Join(dir.Path, "head"), "--format", "sarif", "--output", sarif);
+        var removed = System.Text.Json.JsonDocument.Parse(File.ReadAllText(sarif)).RootElement
+            .GetProperty("runs")[0].GetProperty("results").EnumerateArray().Single(r => r.GetProperty("ruleId").GetString() == "GW060");
+        removed.GetProperty("locations")[0].GetProperty("physicalLocation").GetProperty("artifactLocation").GetProperty("uri").GetString()
+            .ShouldEndWith("/head/v2.json");
     }
 
     [Test]
@@ -321,6 +328,98 @@ public sealed class CliTests
 
         Run("compare", before, after).Out.ShouldContain("[GW060]");
         Run("compare", before, after, "--config", config).Out.ShouldContain("[GW001]");
+    }
+
+    private static void Git(string directory, params string[] arguments)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo("git") { WorkingDirectory = directory, RedirectStandardOutput = true, RedirectStandardError = true };
+        foreach (var argument in new[] { "-c", "user.name=t", "-c", "user.email=t@example.invalid", "-c", "commit.gpgsign=false" }.Concat(arguments))
+        {
+            start.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        process.WaitForExit();
+        process.ExitCode.ShouldBe(0, process.StandardError.ReadToEnd());
+    }
+
+    /// <summary>A git repository whose single commit has <c>api/openapi.json</c> with GET /pets and GET /owners.</summary>
+    private static TempDir Repository()
+    {
+        var dir = new TempDir();
+        Directory.CreateDirectory(Path.Join(dir.Path, "api"));
+        dir.Write("api/openapi.json", TestSpec.Document("""{ "/pets": { "get": { "responses": { "204": { "description": "d" } } } }, "/owners": { "get": { "responses": { "204": { "description": "d" } } } } }"""));
+        Git(dir.Path, "init", "-q");
+        Git(dir.Path, "add", ".");
+        Git(dir.Path, "commit", "-q", "-m", "base");
+        return dir;
+    }
+
+    [Test]
+    public void Base_ref_reads_the_base_document_from_git()
+    {
+        using var dir = Repository();
+        var spec = Path.Join(dir.Path, "api", "openapi.json");
+        File.WriteAllText(spec, TestSpec.Operation("get", "/pets"));
+
+        var (code, output, _) = Run("compare", spec, spec, "--base-ref", "HEAD");
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain($"GapWatch: HEAD:{spec} -> {spec}\n");
+        output.ShouldContain("[GW001] GET /owners");
+    }
+
+    [Test]
+    public void Base_ref_reads_a_folder_including_one_the_head_deleted()
+    {
+        using var dir = Repository();
+        Directory.Delete(Path.Join(dir.Path, "api"), recursive: true);
+        Directory.CreateDirectory(Path.Join(dir.Path, "head"));
+        dir.Write("head/openapi.json", TestSpec.Operation("get", "/pets"));
+
+        var (code, output, _) = Run("compare", Path.Join(dir.Path, "api"), Path.Join(dir.Path, "head"), "--base-ref", "HEAD");
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain("[GW001] GET /owners [1]");
+    }
+
+    [Test]
+    public void Base_ref_with_an_unknown_revision_is_an_input_error()
+    {
+        using var dir = Repository();
+        var spec = Path.Join(dir.Path, "api", "openapi.json");
+
+        var (code, _, error) = Run("compare", spec, spec, "--base-ref", "no-such-branch");
+
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("does not exist at revision 'no-such-branch'");
+    }
+
+    [Test]
+    public void Fail_on_from_the_config_applies_unless_the_option_overrides_it()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Parameter("q", "query", """{ "type": "string" }"""));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/x"));
+        var config = dir.Write("gapwatch.json", """{ "failOn": "warning" }""");
+
+        Run("compare", before, after, "--config", config).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        Run("compare", before, after, "--config", config, "--fail-on", "breaking").Code.ShouldBe(ExitCodes.Success);
+    }
+
+    [Test]
+    public void An_expired_suppression_no_longer_applies()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Document("""{ "/a": { "get": { "responses": { "204": { "description": "d" } } } }, "/b": { "get": { "responses": { "204": { "description": "d" } } } } }"""));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/a"));
+        var current = dir.Write("current.json", """{ "suppressions": [ { "rule": "GW001", "justification": "Agreed.", "expires": "2999-01-01" } ] }""");
+        var expired = dir.Write("expired.json", """{ "suppressions": [ { "rule": "GW001", "justification": "Agreed.", "expires": "2000-01-01" } ] }""");
+
+        Run("compare", before, after, "--config", current).Code.ShouldBe(ExitCodes.Success);
+        var (code, output, _) = Run("compare", before, after, "--config", expired);
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain("  GW001 * (expires 2000-01-01)\n");
     }
 
     private sealed class TempDir : IDisposable

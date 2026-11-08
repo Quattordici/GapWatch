@@ -446,6 +446,144 @@
               }
             },
             {
+              "id": "GW032",
+              "name": "ValueRangeNarrowed",
+              "shortDescription": {
+                "text": "ValueRangeNarrowed"
+              },
+              "fullDescription": {
+                "text": "Request: a minLength, maxLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum, minItems or maxItems bound was added or tightened, so values the server accepted are now rejected."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: a minLength, maxLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum, minItems or maxItems bound was added or tightened, so values the server accepted are now rejected. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW032 ValueRangeNarrowed** (Breaking by default)\n\nRequest: a minLength, maxLength, minimum, maximum, exclusiveMinimum, exclusiveMaximum, minItems or maxItems bound was added or tightened, so values the server accepted are now rejected.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW033",
+              "name": "ValueRangeWidened",
+              "shortDescription": {
+                "text": "ValueRangeWidened"
+              },
+              "fullDescription": {
+                "text": "Response: one of those bounds was removed or loosened. Consumers that sized storage or validation from the contract can fail on the new values."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Response: one of those bounds was removed or loosened. Consumers that sized storage or validation from the contract can fail on the new values. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW033 ValueRangeWidened** (Warning by default)\n\nResponse: one of those bounds was removed or loosened. Consumers that sized storage or validation from the contract can fail on the new values.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW034",
+              "name": "PatternAdded",
+              "shortDescription": {
+                "text": "PatternAdded"
+              },
+              "fullDescription": {
+                "text": "Request: a pattern was added to a value that had none, so strings the server accepted may now be rejected."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: a pattern was added to a value that had none, so strings the server accepted may now be rejected. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW034 PatternAdded** (Breaking by default)\n\nRequest: a pattern was added to a value that had none, so strings the server accepted may now be rejected.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW035",
+              "name": "PatternChanged",
+              "shortDescription": {
+                "text": "PatternChanged"
+              },
+              "fullDescription": {
+                "text": "A pattern changed (either direction), or was removed in a response. Whether one regular expression accepts a subset of another is not decided, so review both."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A pattern changed (either direction), or was removed in a response. Whether one regular expression accepts a subset of another is not decided, so review both. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW035 PatternChanged** (Warning by default)\n\nA pattern changed (either direction), or was removed in a response. Whether one regular expression accepts a subset of another is not decided, so review both.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW036",
+              "name": "AdditionalPropertiesRestricted",
+              "shortDescription": {
+                "text": "AdditionalPropertiesRestricted"
+              },
+              "fullDescription": {
+                "text": "Request: additionalProperties became false, so callers that send extra properties are rejected where the contract is enforced. ASP.NET Core ignores unknown JSON properties by default."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Request: additionalProperties became false, so callers that send extra properties are rejected where the contract is enforced. ASP.NET Core ignores unknown JSON properties by default. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW036 AdditionalPropertiesRestricted** (Warning by default)\n\nRequest: additionalProperties became false, so callers that send extra properties are rejected where the contract is enforced. ASP.NET Core ignores unknown JSON properties by default.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW037",
+              "name": "DiscriminatorChanged",
+              "shortDescription": {
+                "text": "DiscriminatorChanged"
+              },
+              "fullDescription": {
+                "text": "The discriminator property was renamed, or a mapping value now selects another schema (either direction), or a mapping value was removed (request)."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "The discriminator property was renamed, or a mapping value now selects another schema (either direction), or a mapping value was removed (request). See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW037 DiscriminatorChanged** (Breaking by default)\n\nThe discriminator property was renamed, or a mapping value now selects another schema (either direction), or a mapping value was removed (request).\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
               "id": "GW040",
               "name": "RequiredRequestBodyAdded",
               "shortDescription": {
@@ -773,7 +911,7 @@
       "results": [
         {
           "ruleId": "GW044",
-          "ruleIndex": 23,
+          "ruleIndex": 29,
           "level": "error",
           "message": {
             "text": "DELETE /pets/{id}: Success response 204 was removed."
@@ -812,7 +950,7 @@
         },
         {
           "ruleId": "GW052",
-          "ruleIndex": 27,
+          "ruleIndex": 33,
           "level": "error",
           "message": {
             "text": "DELETE /pets/{id}: Previously accepted security (apiKey[]) was replaced by (bearer[])."
@@ -1091,7 +1229,7 @@
         },
         {
           "ruleId": "GW052",
-          "ruleIndex": 27,
+          "ruleIndex": 33,
           "level": "error",
           "message": {
             "text": "GET /pets: Previously accepted security (apiKey[]) was replaced by (bearer[])."
@@ -1253,7 +1391,7 @@
         },
         {
           "ruleId": "GW050",
-          "ruleIndex": 25,
+          "ruleIndex": 31,
           "level": "error",
           "message": {
             "text": "GET /pets/{id}: The operation now requires authentication (bearer[])."
@@ -1374,7 +1512,7 @@
         },
         {
           "ruleId": "GW043",
-          "ruleIndex": 22,
+          "ruleIndex": 28,
           "level": "error",
           "message": {
             "text": "POST /pets: Request media type 'application/xml' is no longer accepted."
@@ -1536,7 +1674,7 @@
         },
         {
           "ruleId": "GW052",
-          "ruleIndex": 27,
+          "ruleIndex": 33,
           "level": "error",
           "message": {
             "text": "POST /pets: Previously accepted security (apiKey[]) was replaced by (bearer[])."
@@ -1938,7 +2076,7 @@
         },
         {
           "ruleId": "GW045",
-          "ruleIndex": 24,
+          "ruleIndex": 30,
           "level": "note",
           "message": {
             "text": "POST /pets: Response 400 was removed."
