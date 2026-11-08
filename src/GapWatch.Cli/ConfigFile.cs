@@ -14,6 +14,12 @@ public sealed class ConfigurationException(string message) : Exception(message);
 /// <param name="Versioning">How API versions are recognized for GW060 to GW063.</param>
 public sealed record GapWatchConfiguration(CompatibilityPolicy Policy, VersioningOptions Versioning)
 {
+    /// <summary>
+    /// The configured failure threshold: <c>"breaking"</c>, <c>"warning"</c> or <c>"none"</c>, or null when the file does
+    /// not set one. The <c>--fail-on</c> option wins over it.
+    /// </summary>
+    public string? FailOn { get; init; }
+
     /// <summary>No configuration file: the default policy and Asp.Versioning defaults.</summary>
     public static GapWatchConfiguration Default { get; } = new(CompatibilityPolicy.Default, VersioningOptions.Default);
 }
@@ -99,6 +105,7 @@ public static class ConfigFile
             var disabled = new HashSet<string>(StringComparer.Ordinal);
             var suppressions = new List<Suppression>();
             var versioning = VersioningOptions.Default;
+            string? failOn = null;
 
             foreach (var property in root.EnumerateObject())
             {
@@ -110,19 +117,28 @@ public static class ConfigFile
                     case "suppressions":
                         ReadSuppressions(property.Value, source, suppressions);
                         break;
+                    case "failOn":
+                        failOn = ReadString(property.Value, source, "$.failOn").ToLowerInvariant();
+                        if (failOn is not ("breaking" or "warning" or "none"))
+                        {
+                            throw new ConfigurationException(
+                                $"{source}: $.failOn has value '{property.Value.GetString()}'. Use 'breaking', 'warning' or 'none'.");
+                        }
+
+                        break;
                     case "versioning":
                         versioning = ReadVersioning(property.Value, source);
                         break;
                     default:
                         throw new ConfigurationException(
-                            $"{source}: unknown property '{property.Name}'. Expected 'rules', 'suppressions' or 'versioning'.");
+                            $"{source}: unknown property '{property.Name}'. Expected 'rules', 'suppressions', 'failOn' or 'versioning'.");
                 }
             }
 
             var policy = new CompatibilityPolicy(overrides, disabled, suppressions);
             var problems = policy.Validate();
             return problems.Count == 0
-                ? new GapWatchConfiguration(policy, versioning)
+                ? new GapWatchConfiguration(policy, versioning) { FailOn = failOn }
                 : throw new ConfigurationException($"{source}: {string.Join(" ", problems)}");
         }
     }
@@ -225,6 +241,7 @@ public static class ConfigFile
             Expect(item, JsonValueKind.Object, source, path);
 
             string? rule = null, operation = null, location = null, justification = null;
+            DateOnly? expires = null;
             foreach (var property in item.EnumerateObject())
             {
                 var propertyPath = $"{path}.{property.Name}";
@@ -242,9 +259,15 @@ public static class ConfigFile
                     case "justification":
                         justification = ReadString(property.Value, source, propertyPath);
                         break;
+                    case "expires":
+                        var text = ReadString(property.Value, source, propertyPath);
+                        expires = DateOnly.TryParseExact(text, "yyyy-MM-dd", System.Globalization.CultureInfo.InvariantCulture, System.Globalization.DateTimeStyles.None, out var date)
+                            ? date
+                            : throw new ConfigurationException($"{source}: {propertyPath} must be a date like 2026-12-31, not '{text}'.");
+                        break;
                     default:
                         throw new ConfigurationException(
-                            $"{source}: unknown property '{propertyPath}'. Expected 'rule', 'operation', 'location' or 'justification'.");
+                            $"{source}: unknown property '{propertyPath}'. Expected 'rule', 'operation', 'location', 'justification' or 'expires'.");
                 }
             }
 
@@ -253,7 +276,7 @@ public static class ConfigFile
                 throw new ConfigurationException($"{source}: {path} needs a 'rule'.");
             }
 
-            suppressions.Add(new Suppression(rule, operation, location, justification ?? string.Empty));
+            suppressions.Add(new Suppression(rule, operation, location, justification ?? string.Empty) { Expires = expires });
         }
     }
 

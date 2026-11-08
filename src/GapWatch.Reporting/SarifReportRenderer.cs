@@ -282,11 +282,13 @@ public sealed class SarifReportRenderer : IReportRenderer
 
     /// <summary>
     /// The place in the head OpenAPI document: the single head document (artifact 1), or in multi-document mode the
-    /// version document the operation is in, which is not one of the listed artifacts.
+    /// version document the operation is in, which is not one of the listed artifacts. A removed version is in no head
+    /// document, so it falls back to the first one at 1:1, as a removed operation does in single-document mode: code
+    /// scanning needs a file in the repository, and a folder is not one.
     /// </summary>
     private static void WriteSpecLocation(Utf8JsonWriter json, Finding finding, ReportContext context, SourcePosition region)
     {
-        if (finding.Document is { } document)
+        if ((finding.Document ?? context.FallbackHeadDocument) is { } document)
         {
             WritePhysicalLocation(json, ArtifactUri(document), artifactIndex: null, region.Line, region.Column);
         }

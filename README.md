@@ -31,7 +31,7 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
@@ -43,13 +43,14 @@ gapwatch --version | --help
 - `--output` writes the report to a file and prints a one-line summary.
 - `--config` reads a `gapwatch.json` with severity overrides and suppressions (see [Configuration](#configuration)).
 - `--baseline` accepts the findings listed in a baseline file, and `--write-baseline` writes one from the current run. Baselines are for adopting GapWatch against a base that is far behind, such as the last release (see [Configuration](docs/configuration.md#baselines)).
+- `--base-ref` reads `<base>` from a git revision instead of the working tree, e.g. `gapwatch compare api/openapi.json api/openapi.json --base-ref origin/main`. It works for files and folders, and only reads from git.
 - `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
 
 ### Exit codes
 
 | Code | Meaning |
 |---|---|
-| 0 | No finding at or above the `--fail-on` threshold (default threshold: `breaking`). |
+| 0 | No finding at or above the `--fail-on` threshold (default threshold: `breaking`, or `failOn` in `gapwatch.json`). |
 | 1 | At least one finding at or above the threshold. |
 | 2 | Usage error or unreadable input. |
 
@@ -195,8 +196,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
-- **Two files or two folders in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
-- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version has no place in the head, so its SARIF result points at the head folder.
+- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version exists in no head document, so its SARIF result points at the first head document, line 1, as a removed operation does.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
 

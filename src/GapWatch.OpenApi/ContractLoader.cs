@@ -35,6 +35,24 @@ public static class ContractLoader
     }
 
     /// <summary>
+    /// Reads an API description from a stream, choosing the reader by <paramref name="name"/>'s extension. Used for
+    /// documents that are not files on disk, such as a file at a git revision.
+    /// </summary>
+    /// <exception cref="ContractReadException">The name has an unsupported extension, or the document is invalid.</exception>
+    public static ApiContract Load(string name, Stream content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(content);
+
+        var reader = Readers.FirstOrDefault(r => r.CanRead(name))
+                     ?? throw new ContractReadException(UnsupportedMessage(name));
+        return reader.Read(content);
+    }
+
+    /// <summary>True when <paramref name="name"/> has an extension one of the readers supports.</summary>
+    public static bool IsSupported(string name) => Readers.Any(r => r.CanRead(name));
+
+    /// <summary>
     /// Loads every OpenAPI document directly in <paramref name="directory"/> (<c>.json</c>, <c>.yaml</c>, <c>.yml</c>; not
     /// recursive), ordered by file name. Paths are reported as <c>directory/file</c> with forward slashes.
     /// </summary>

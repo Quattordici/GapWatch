@@ -21,6 +21,15 @@ public sealed record Suppression(string RuleId, string? Operation, string? Locat
     /// </summary>
     public bool IsBaseline { get; init; }
 
+    /// <summary>
+    /// The first day on which the suppression no longer applies, so the change it accepted is reported again. Null means
+    /// it never expires. Expiry needs <see cref="CompatibilityPolicy.Today"/>; without it nothing expires.
+    /// </summary>
+    public DateOnly? Expires { get; init; }
+
+    /// <summary>True when the suppression has an expiry date and <paramref name="today"/> is on or after it.</summary>
+    public bool IsExpired(DateOnly? today) => Expires is { } expires && today is { } now && now >= expires;
+
     /// <summary>True when this suppression covers <paramref name="finding"/>.</summary>
     public bool Matches(Finding finding)
     {
@@ -34,7 +43,8 @@ public sealed record Suppression(string RuleId, string? Operation, string? Locat
     /// <summary>Compact human-readable form, e.g. <c>GW025 GET /pets response 200: $.name</c>.</summary>
     public string Describe() =>
         (IsBaseline ? "baseline: " : string.Empty)
-        + string.Join(' ', new[] { RuleId, Operation ?? "*", Location }.Where(part => part is not null));
+        + string.Join(' ', new[] { RuleId, Operation ?? "*", Location }.Where(part => part is not null))
+        + (Expires is { } expires ? $" (expires {expires:yyyy-MM-dd})" : string.Empty);
 }
 
 /// <summary>
@@ -49,6 +59,12 @@ public sealed record CompatibilityPolicy(
     IReadOnlySet<string> DisabledRules,
     IReadOnlyList<Suppression> Suppressions)
 {
+    /// <summary>
+    /// The date suppressions are checked against for <see cref="Suppression.Expires"/>. Core reads no clock, so the
+    /// caller supplies it; null means no suppression expires, which keeps a run reproducible.
+    /// </summary>
+    public DateOnly? Today { get; init; }
+
     /// <summary>The policy that changes nothing.</summary>
     public static CompatibilityPolicy Default { get; } = new(
         new Dictionary<string, Severity>(StringComparer.Ordinal),
@@ -98,7 +114,8 @@ public sealed record CompatibilityPolicy(
 
     /// <summary>
     /// Applies the policy to a raw comparison: drops disabled rules, applies severity overrides, then moves findings
-    /// matched by a suppression to <see cref="ComparisonResult.Suppressed"/>. The first matching suppression wins.
+    /// matched by a suppression to <see cref="ComparisonResult.Suppressed"/>. The first matching suppression wins. An
+    /// expired suppression matches nothing, so its findings are active again and it is listed as unused.
     /// </summary>
     /// <exception cref="ArgumentException">The policy is invalid (see <see cref="Validate"/>).</exception>
     public ComparisonResult Apply(ComparisonResult result)
@@ -121,7 +138,7 @@ public sealed record CompatibilityPolicy(
 
         foreach (var finding in FindingOrder.Sort(adjusted))
         {
-            var match = Suppressions.FirstOrDefault(s => s.Matches(finding));
+            var match = Suppressions.FirstOrDefault(s => !s.IsExpired(Today) && s.Matches(finding));
             if (match is null)
             {
                 active.Add(finding);

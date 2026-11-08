@@ -27,19 +27,19 @@ GapWatch compares two files (or two folders of version documents); it never buil
 
 | Option | How | Trade-off |
 |---|---|---|
-| **Committed spec (recommended)** | Commit the generated `openapi.json` (or `.yaml`) and have the build fail when it is stale. Read the base version straight from git: `git show origin/main:api/openapi.json > base.json` | Simplest and fastest. The spec diff is also visible in the pull request itself. Needs a "spec is up to date" check. |
+| **Committed spec (recommended)** | Commit the generated `openapi.json` (or `.yaml`) and have the build fail when it is stale. Let GapWatch read the base version from git: `gapwatch compare api/openapi.json api/openapi.json --base-ref origin/main` | Simplest and fastest. The spec diff is also visible in the pull request itself. Needs a "spec is up to date" check. |
 | Generate from the base commit | Check out the target branch into a separate worktree (`git worktree add ../base origin/main`), build it, and generate the spec there the same way as for the head. | Always accurate, but builds twice and both builds must produce the spec identically. |
 | Published artifact | Download the spec your last release published (package feed, build artifact, API gateway). | Compares against what is actually deployed rather than against the target branch. Differences that already exist when you adopt GapWatch can be accepted with a [baseline](configuration.md#baselines). |
 
 Things that break this step in CI:
 
-- **Shallow clones.** `git show origin/main:...` needs the target branch. Fetch it explicitly (`git fetch origin main`) or disable shallow fetch.
+- **Shallow clones.** `--base-ref origin/main` needs the target branch. Fetch it explicitly (`git fetch origin main`) or disable shallow fetch.
 - **Generator drift.** Swashbuckle, NSwag and the built-in `Microsoft.AspNetCore.OpenApi` generator emit different documents for the same code. Generate base and head with the same generator and version, or the diff is noise.
 - **Missing base.** When a pull request adds the API for the first time there is no base file. Skip the step in that case rather than comparing against an empty file.
 
 The **head** document is the spec generated (or committed) in the pull request build.
 
-With `Asp.Versioning` there is usually one document per version (`v1.json`, `v2.json`). Put the base documents in one folder and the head documents in another and pass the two folders; GapWatch pairs them by `info.version` and reports a document that disappeared as a removed API version (see [API versions](../README.md#api-versions)). With a committed spec, `git archive origin/main api/ | tar -x -C base` extracts the whole base folder in one step.
+With `Asp.Versioning` there is usually one document per version (`v1.json`, `v2.json`). Put the base documents in one folder and the head documents in another and pass the two folders; GapWatch pairs them by `info.version` and reports a document that disappeared as a removed API version (see [API versions](../README.md#api-versions)). With a committed spec, `--base-ref origin/main` reads the base folder from git as well: `gapwatch compare api/ api/ --base-ref origin/main`.
 
 ## 3. Decide what fails the build
 

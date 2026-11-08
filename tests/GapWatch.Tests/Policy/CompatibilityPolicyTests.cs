@@ -159,4 +159,19 @@ public sealed class CompatibilityPolicyTests
             .Validate()
             .ShouldBeEmpty();
     }
+
+    [Test]
+    public void A_suppression_applies_before_its_expiry_date_and_not_from_it()
+    {
+        var suppression = new Suppression("GW003", null, null, "Accepted.") { Expires = new DateOnly(2026, 12, 1) };
+        var policy = Policy(suppressions: suppression);
+
+        Ids((policy with { Today = new DateOnly(2026, 11, 30) }).Apply(Raw()).Findings).ShouldBe("GW025,GW004");
+
+        var expired = (policy with { Today = new DateOnly(2026, 12, 1) }).Apply(Raw());
+        Ids(expired.Findings).ShouldBe("GW025,GW004,GW003");
+        expired.UnusedSuppressions.ShouldHaveSingleItem().Describe().ShouldBe("GW003 * (expires 2026-12-01)");
+
+        Ids(policy.Apply(Raw()).Findings).ShouldBe("GW025,GW004"); // without a date nothing expires
+    }
 }
