@@ -82,10 +82,17 @@ public sealed record ResponseContract(string StatusCode, IReadOnlyDictionary<str
 
 /// <summary>
 /// A place in the document a contract was read from: 1-based line and column (in UTF-16 code units, as editors count).
-/// It is plain data, so any reader can provide it; the file it refers to is known to whoever loaded the document.
+/// It is plain data, so any reader can provide it; the file it refers to is known to whoever loaded the document,
+/// unless <see cref="File"/> names it.
 /// </summary>
 public sealed record SourcePosition(int Line, int Column)
 {
+    /// <summary>
+    /// The file, for a contract read from several files (C# source), where each element can live in another one. Null
+    /// means the document the contract was read from.
+    /// </summary>
+    public string? File { get; init; }
+
     /// <summary><c>line:column</c>.</summary>
     public override string ToString() => $"{Line}:{Column}";
 }

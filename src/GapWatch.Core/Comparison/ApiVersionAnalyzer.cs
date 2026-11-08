@@ -156,7 +156,7 @@ public static class ApiVersionAnalyzer
                 {
                     ApiVersion = text,
                     Position = replacement.Head?.Position,
-                    Document = replacement.Head?.Document,
+                    Document = replacement.Head?.Position?.File ?? replacement.Head?.Document,
                 });
             }
         }

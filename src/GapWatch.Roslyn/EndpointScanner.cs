@@ -1,9 +1,37 @@
-using GapWatch.Core.Findings;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
+using static GapWatch.Roslyn.SyntaxHelpers;
 
 namespace GapWatch.Roslyn;
+
+/// <summary>An endpoint found in code, with the syntax the contract reader needs to describe it.</summary>
+/// <param name="Method">Upper-case HTTP method.</param>
+/// <param name="Route">Route template as declared, with constraints, e.g. <c>/api/pets/{id:int}</c>.</param>
+/// <param name="Location">The action method name or the <c>Map*</c> call.</param>
+/// <param name="Parameters">The action or handler parameters, in order.</param>
+/// <param name="Handler">The action method, or the minimal API handler (a lambda's symbol or the named method).</param>
+/// <param name="Lambda">The handler when it is a lambda, whose return type may have to be inferred from its body.</param>
+/// <param name="Attributes">Attributes on the action or handler.</param>
+/// <param name="TypeAttributes">Attributes on the controller and its base classes, closest first (empty for minimal APIs).</param>
+/// <param name="Conventions">
+/// Fluent calls that configure a minimal API endpoint: on the <c>Map*</c> call and on the groups it belongs to, such as
+/// <c>RequireAuthorization()</c> or <c>Produces&lt;T&gt;(200)</c>.
+/// </param>
+/// <param name="IsController">Whether this is a controller action.</param>
+/// <param name="IsApiController">Whether the controller has <c>[ApiController]</c>, which changes binding inference.</param>
+internal sealed record EndpointDeclaration(
+    string Method,
+    string Route,
+    Location Location,
+    IReadOnlyList<ParameterSyntax> Parameters,
+    IMethodSymbol? Handler,
+    AnonymousFunctionExpressionSyntax? Lambda,
+    IReadOnlyList<AttributeSyntax> Attributes,
+    IReadOnlyList<AttributeSyntax> TypeAttributes,
+    IReadOnlyList<InvocationExpressionSyntax> Conventions,
+    bool IsController,
+    bool IsApiController);
 
 /// <summary>Finds attribute-routed controller actions and minimal API endpoints in one syntax tree.</summary>
 internal static class EndpointScanner
@@ -28,20 +56,9 @@ internal static class EndpointScanner
         ["MapPatch"] = "PATCH",
     };
 
-    /// <summary>Attributes that say where a value comes from; their <c>Name</c> overrides the parameter name.</summary>
-    private static readonly HashSet<string> BindingAttributes = new(StringComparer.Ordinal)
+    public static IEnumerable<EndpointDeclaration> Scan(SyntaxTree tree, Compilation compilation)
     {
-        "FromQuery", "FromRoute", "FromHeader", "FromForm",
-    };
-
-    /// <summary>Parameters that never appear as OpenAPI parameters.</summary>
-    private static readonly HashSet<string> NonParameterAttributes = new(StringComparer.Ordinal)
-    {
-        "FromBody", "FromServices", "FromKeyedServices", "AsParameters",
-    };
-
-    public static IEnumerable<Endpoint> Scan(SyntaxTree tree, SemanticModel model)
-    {
+        var model = compilation.GetSemanticModel(tree);
         var root = tree.GetRoot();
 
         foreach (var type in root.DescendantNodes().OfType<ClassDeclarationSyntax>())
@@ -54,7 +71,7 @@ internal static class EndpointScanner
 
         foreach (var invocation in root.DescendantNodes().OfType<InvocationExpressionSyntax>())
         {
-            if (MinimalApi(invocation, model) is { } endpoint)
+            if (MinimalApi(invocation, model, compilation) is { } endpoint)
             {
                 yield return endpoint;
             }
@@ -63,7 +80,7 @@ internal static class EndpointScanner
 
     // --- Controllers ---------------------------------------------------------------------------------------------
 
-    private static IEnumerable<Endpoint> Controller(ClassDeclarationSyntax type, SemanticModel model)
+    private static IEnumerable<EndpointDeclaration> Controller(ClassDeclarationSyntax type, SemanticModel model)
     {
         if (type.Modifiers.Any(SyntaxKind.AbstractKeyword) || model.GetDeclaredSymbol(type) is not { } symbol)
         {
@@ -71,9 +88,10 @@ internal static class EndpointScanner
         }
 
         var hierarchy = Hierarchy(symbol).ToList();
-        var isController = !HasAttribute(type, "NonController")
+        var typeAttributes = hierarchy.SelectMany(c => Attributes(c.AttributeLists)).ToList();
+        var isController = !Attributes(type.AttributeLists).Has("NonController")
                            && (symbol.Name.EndsWith("Controller", StringComparison.Ordinal)
-                               || hierarchy.Any(c => HasAttribute(c, "ApiController") || HasAttribute(c, "Controller"))
+                               || typeAttributes.Has("ApiController") || typeAttributes.Has("Controller")
                                || type.BaseList?.Types.Any(t => t.Type.ToString().Contains("Controller", StringComparison.Ordinal)) == true);
         if (!isController)
         {
@@ -92,9 +110,10 @@ internal static class EndpointScanner
 
         foreach (var method in type.Members.OfType<MethodDeclarationSyntax>())
         {
+            var attributes = Attributes(method.AttributeLists).ToList();
             if (!method.Modifiers.Any(SyntaxKind.PublicKeyword)
                 || method.Modifiers.Any(SyntaxKind.StaticKeyword)
-                || HasAttribute(method.AttributeLists, "NonAction"))
+                || attributes.Has("NonAction"))
             {
                 continue;
             }
@@ -102,10 +121,8 @@ internal static class EndpointScanner
             var action = Templates(method.AttributeLists, "ActionName", model).FirstOrDefault()
                          ?? TrimAsync(method.Identifier.ValueText);
             var methodRoutes = Templates(method.AttributeLists, "Route", model).ToList();
-            var location = CodeMap.ToCodeLocation(method.Identifier.GetLocation());
-            var parameters = Parameters(method.ParameterList);
 
-            foreach (var (verb, template) in HttpVerbs(method.AttributeLists, model))
+            foreach (var (verb, template) in HttpVerbs(attributes, model))
             {
                 List<string?> templates = template is not null ? [template] : methodRoutes.Count > 0 ? [.. methodRoutes] : [null];
                 foreach (var prefix in prefixes)
@@ -113,7 +130,18 @@ internal static class EndpointScanner
                     foreach (var actionTemplate in templates)
                     {
                         var route = RouteTemplate.ReplaceTokens(RouteTemplate.Combine(prefix, actionTemplate), controller, action, area);
-                        yield return new Endpoint(verb, route, location, parameters);
+                        yield return new EndpointDeclaration(
+                            verb,
+                            route,
+                            method.Identifier.GetLocation(),
+                            method.ParameterList.Parameters,
+                            model.GetDeclaredSymbol(method),
+                            null,
+                            attributes,
+                            typeAttributes,
+                            [],
+                            IsController: true,
+                            IsApiController: typeAttributes.Has("ApiController"));
                     }
                 }
             }
@@ -135,9 +163,9 @@ internal static class EndpointScanner
         }
     }
 
-    private static IEnumerable<(string Verb, string? Template)> HttpVerbs(SyntaxList<AttributeListSyntax> lists, SemanticModel model)
+    private static IEnumerable<(string Verb, string? Template)> HttpVerbs(IEnumerable<AttributeSyntax> attributes, SemanticModel model)
     {
-        foreach (var attribute in lists.SelectMany(l => l.Attributes))
+        foreach (var attribute in attributes)
         {
             if (HttpAttributes.TryGetValue(Name(attribute), out var verb))
             {
@@ -151,7 +179,7 @@ internal static class EndpointScanner
 
     // --- Minimal APIs --------------------------------------------------------------------------------------------
 
-    private static Endpoint? MinimalApi(InvocationExpressionSyntax invocation, SemanticModel model)
+    private static EndpointDeclaration? MinimalApi(InvocationExpressionSyntax invocation, SemanticModel model, Compilation compilation)
     {
         if (invocation.Expression is not MemberAccessExpressionSyntax member
             || !MapMethods.TryGetValue(member.Name.Identifier.ValueText, out var verb)
@@ -161,68 +189,97 @@ internal static class EndpointScanner
             return null;
         }
 
-        var route = RouteTemplate.Append(GroupPrefix(member.Expression, model, depth: 0), pattern);
+        var groups = new List<InvocationExpressionSyntax>();
+        Receivers(member.Expression, model, groups, depth: 0);
+        var prefix = groups
+            .Where(g => MethodName(g) == "MapGroup" && g.ArgumentList.Arguments.Count > 0)
+            .Select(g => ConstantString(g.ArgumentList.Arguments[0].Expression, model))
+            .Aggregate((string?)null, (outer, group) => group is null ? outer : RouteTemplate.Append(outer, group));
+
+        // Calls chained after the Map call: app.MapGet(...).RequireAuthorization().WithName("...").
+        var conventions = new List<InvocationExpressionSyntax>(groups.Where(g => MethodName(g) != "MapGroup"));
+        for (SyntaxNode node = invocation;
+             node.Parent is MemberAccessExpressionSyntax access && access.Expression == node && access.Parent is InvocationExpressionSyntax call;
+             node = call)
+        {
+            conventions.Add(call);
+        }
+
         var handler = invocation.ArgumentList.Arguments[^1].Expression;
-        return new Endpoint(
+        var (parameters, symbol, lambda, attributes) = Handler(handler, model, compilation);
+        return new EndpointDeclaration(
             verb,
-            route,
-            CodeMap.ToCodeLocation(member.Name.GetLocation()),
-            HandlerParameters(handler, model));
+            RouteTemplate.Append(prefix, pattern),
+            member.Name.GetLocation(),
+            parameters,
+            symbol,
+            lambda,
+            attributes,
+            [],
+            conventions,
+            IsController: false,
+            IsApiController: false);
     }
 
     /// <summary>
-    /// The route prefix contributed by <c>MapGroup</c> calls on the receiver: chained directly, through fluent calls
-    /// such as <c>WithTags</c>, or through a local variable or field that holds the group.
+    /// Collects the calls on the receiver of a <c>Map*</c> call, outermost (the app) first: <c>MapGroup</c> calls and
+    /// fluent calls such as <c>WithTags</c>, chained directly or made on a local variable or field that holds the group.
     /// </summary>
-    private static string? GroupPrefix(ExpressionSyntax receiver, SemanticModel model, int depth)
+    private static void Receivers(ExpressionSyntax receiver, SemanticModel model, List<InvocationExpressionSyntax> calls, int depth)
     {
         if (depth > 16)
         {
-            return null;
+            return;
         }
 
         switch (receiver)
         {
             case InvocationExpressionSyntax { Expression: MemberAccessExpressionSyntax inner } call:
-                var outer = GroupPrefix(inner.Expression, model, depth + 1);
-                return inner.Name.Identifier.ValueText == "MapGroup"
-                       && call.ArgumentList.Arguments.Count > 0
-                       && ConstantString(call.ArgumentList.Arguments[0].Expression, model) is { } group
-                    ? RouteTemplate.Append(outer, group)
-                    : outer;
+                Receivers(inner.Expression, model, calls, depth + 1);
+                calls.Add(call);
+                return;
 
             case IdentifierNameSyntax identifier:
                 var symbol = model.GetSymbolInfo(identifier).Symbol;
-                if (symbol is ILocalSymbol or IFieldSymbol)
+                if (symbol is not (ILocalSymbol or IFieldSymbol))
                 {
-                    foreach (var reference in symbol.DeclaringSyntaxReferences)
+                    return;
+                }
+
+                foreach (var reference in symbol.DeclaringSyntaxReferences)
+                {
+                    if (reference.GetSyntax() is VariableDeclaratorSyntax { Initializer.Value: { } initializer }
+                        && initializer.SyntaxTree == identifier.SyntaxTree)
                     {
-                        if (reference.GetSyntax() is VariableDeclaratorSyntax { Initializer.Value: { } initializer }
-                            && initializer.SyntaxTree == identifier.SyntaxTree)
-                        {
-                            return GroupPrefix(initializer, model, depth + 1);
-                        }
+                        Receivers(initializer, model, calls, depth + 1);
                     }
                 }
 
-                return null;
+                // Statements such as `pets.RequireAuthorization();` configure every endpoint of the group.
+                calls.AddRange(identifier.SyntaxTree.GetRoot().DescendantNodes()
+                    .OfType<InvocationExpressionSyntax>()
+                    .Where(call => call.Parent is ExpressionStatementSyntax
+                                   && call.Expression is MemberAccessExpressionSyntax { Expression: IdentifierNameSyntax target }
+                                   && target.Identifier.ValueText == identifier.Identifier.ValueText
+                                   && SymbolEqualityComparer.Default.Equals(model.GetSymbolInfo(target).Symbol, symbol)
+                                   && MethodName(call) is { } name && !name.StartsWith("Map", StringComparison.Ordinal)));
+                return;
 
             case ParenthesizedExpressionSyntax parenthesized:
-                return GroupPrefix(parenthesized.Expression, model, depth + 1);
-
-            default:
-                return null;
+                Receivers(parenthesized.Expression, model, calls, depth + 1);
+                return;
         }
     }
 
-    private static IReadOnlyDictionary<string, CodeLocation> HandlerParameters(ExpressionSyntax handler, SemanticModel model)
+    private static (IReadOnlyList<ParameterSyntax> Parameters, IMethodSymbol? Symbol, AnonymousFunctionExpressionSyntax? Lambda, IReadOnlyList<AttributeSyntax> Attributes)
+        Handler(ExpressionSyntax handler, SemanticModel model, Compilation compilation)
     {
         switch (handler)
         {
             case ParenthesizedLambdaExpressionSyntax lambda:
-                return Parameters(lambda.ParameterList);
+                return (lambda.ParameterList.Parameters, model.GetSymbolInfo(lambda).Symbol as IMethodSymbol, lambda, Attributes(lambda.AttributeLists).ToList());
             case SimpleLambdaExpressionSyntax simple:
-                return Parameters(SyntaxFactory.ParameterList(SyntaxFactory.SingletonSeparatedList(simple.Parameter)));
+                return ([simple.Parameter], model.GetSymbolInfo(simple).Symbol as IMethodSymbol, simple, Attributes(simple.AttributeLists).ToList());
         }
 
         // A method group: find the declaration of the method it names.
@@ -231,90 +288,18 @@ internal static class EndpointScanner
         var declaration = method?.DeclaringSyntaxReferences.Select(r => r.GetSyntax()).FirstOrDefault();
         return declaration switch
         {
-            MethodDeclarationSyntax m => Parameters(m.ParameterList),
-            LocalFunctionStatementSyntax f => Parameters(f.ParameterList),
-            _ => new Dictionary<string, CodeLocation>(),
+            MethodDeclarationSyntax m => (m.ParameterList.Parameters, method, null, Attributes(m.AttributeLists).ToList()),
+            LocalFunctionStatementSyntax f => (f.ParameterList.Parameters, method, null, Attributes(f.AttributeLists).ToList()),
+            _ => ([], method, null, []),
         };
     }
 
     // --- Shared helpers ------------------------------------------------------------------------------------------
 
-    private static Dictionary<string, CodeLocation> Parameters(ParameterListSyntax list)
-    {
-        var result = new Dictionary<string, CodeLocation>(StringComparer.OrdinalIgnoreCase);
-        foreach (var parameter in list.Parameters)
-        {
-            if (HasAnyAttribute(parameter.AttributeLists, NonParameterAttributes)
-                || parameter.Type?.ToString() is "CancellationToken" or "HttpContext" or "HttpRequest" or "HttpResponse")
-            {
-                continue;
-            }
-
-            var name = parameter.AttributeLists
-                .SelectMany(l => l.Attributes)
-                .Where(a => BindingAttributes.Contains(Name(a)))
-                .Select(NamedStringArgument)
-                .FirstOrDefault(n => n is not null)
-                ?? parameter.Identifier.ValueText;
-
-            result.TryAdd(name, CodeMap.ToCodeLocation(parameter.Identifier.GetLocation()));
-        }
-
-        return result;
-    }
-
     /// <summary>String arguments of every attribute with the given name, e.g. all <c>[Route("...")]</c> templates.</summary>
     private static IEnumerable<string> Templates(SyntaxList<AttributeListSyntax> lists, string attribute, SemanticModel model) =>
-        lists.SelectMany(l => l.Attributes)
-            .Where(a => Name(a) == attribute)
+        Attributes(lists)
+            .Named(attribute)
             .Select(a => FirstStringArgument(a, model))
             .OfType<string>();
-
-    private static bool HasAttribute(ClassDeclarationSyntax type, string attribute) => HasAttribute(type.AttributeLists, attribute);
-
-    private static bool HasAttribute(SyntaxList<AttributeListSyntax> lists, string attribute) =>
-        lists.SelectMany(l => l.Attributes).Any(a => Name(a) == attribute);
-
-    private static bool HasAnyAttribute(SyntaxList<AttributeListSyntax> lists, HashSet<string> attributes) =>
-        lists.SelectMany(l => l.Attributes).Any(a => attributes.Contains(Name(a)));
-
-    /// <summary>Attribute name without namespace and without the <c>Attribute</c> suffix.</summary>
-    internal static string Name(AttributeSyntax attribute)
-    {
-        var name = attribute.Name switch
-        {
-            QualifiedNameSyntax qualified => qualified.Right.Identifier.ValueText,
-            AliasQualifiedNameSyntax alias => alias.Name.Identifier.ValueText,
-            SimpleNameSyntax simple => simple.Identifier.ValueText,
-            _ => attribute.Name.ToString(),
-        };
-        return name.EndsWith("Attribute", StringComparison.Ordinal) ? name[..^"Attribute".Length] : name;
-    }
-
-    /// <summary>The first positional argument (or <c>template:</c>) as a constant string.</summary>
-    private static string? FirstStringArgument(AttributeSyntax attribute, SemanticModel model) =>
-        attribute.ArgumentList?.Arguments
-            .Where(a => a.NameEquals is null && (a.NameColon is null || a.NameColon.Name.Identifier.ValueText is "template" or "name"))
-            .Select(a => ConstantString(a.Expression, model))
-            .FirstOrDefault();
-
-    /// <summary>The <c>Name = "..."</c> argument of a binding attribute.</summary>
-    private static string? NamedStringArgument(AttributeSyntax attribute) =>
-        attribute.ArgumentList?.Arguments
-            .Where(a => a.NameEquals?.Name.Identifier.ValueText == "Name")
-            .Select(a => a.Expression is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } literal
-                ? literal.Token.ValueText
-                : null)
-            .FirstOrDefault();
-
-    internal static string? ConstantString(ExpressionSyntax expression, SemanticModel model)
-    {
-        if (expression is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } literal)
-        {
-            return literal.Token.ValueText;
-        }
-
-        var constant = model.GetConstantValue(expression);
-        return constant is { HasValue: true, Value: string value } ? value : null;
-    }
 }

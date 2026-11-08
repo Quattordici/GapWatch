@@ -2,6 +2,7 @@ using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
+using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace GapWatch.Roslyn;
 
@@ -17,8 +18,6 @@ namespace GapWatch.Roslyn;
 /// </remarks>
 public sealed class CodeMap
 {
-    private static readonly string[] ExcludedDirectories = ["bin", "obj", ".git", "node_modules"];
-
     private readonly Dictionary<string, List<Endpoint>> _endpoints;
     private readonly TypeIndex _types;
 
@@ -36,52 +35,23 @@ public sealed class CodeMap
 
     /// <summary>Reads every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c> and <c>obj</c>.</summary>
     /// <exception cref="DirectoryNotFoundException">The directory does not exist.</exception>
-    public static CodeMap Load(string directory)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-        if (!Directory.Exists(directory))
-        {
-            throw new DirectoryNotFoundException($"Source directory not found: {directory}");
-        }
-
-        var files = Directory
-            .EnumerateFiles(directory, "*.cs", SearchOption.AllDirectories)
-            .Where(path => !Path.GetRelativePath(directory, path)
-                .Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Any(segment => ExcludedDirectories.Contains(segment, StringComparer.OrdinalIgnoreCase)))
-            .Order(StringComparer.Ordinal)
-            .Select(path => (path.Replace('\\', '/'), File.ReadAllText(path)));
-
-        return FromSources(files);
-    }
+    public static CodeMap Load(string directory) => FromSources(SourceCompilation.ReadDirectory(directory));
 
     /// <summary>Builds a map from in-memory sources: <c>(path, text)</c> pairs. The path is used verbatim in locations.</summary>
     public static CodeMap FromSources(IEnumerable<(string Path, string Text)> sources)
     {
-        ArgumentNullException.ThrowIfNull(sources);
-
-        var options = new CSharpParseOptions(LanguageVersion.Latest);
-        var trees = sources.Select(s => CSharpSyntaxTree.ParseText(s.Text, options, s.Path)).ToList();
-
-        // Projects usually rely on SDK implicit usings, which a bare compilation does not have.
-        trees.Add(CSharpSyntaxTree.ParseText(
-            "global using System; global using System.Collections.Generic; global using System.Linq; global using System.Threading.Tasks;",
-            options,
-            "<implicit-usings>"));
-
-        var compilation = CSharpCompilation.Create(
-            "GapWatch.SourceMap",
-            trees,
-            RuntimeReferences.Value,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+        var compilation = SourceCompilation.Compile(sources);
 
         var endpoints = new List<Endpoint>();
         var types = new TypeIndex();
-        foreach (var tree in trees)
+        foreach (var tree in compilation.SyntaxTrees)
         {
-            var model = compilation.GetSemanticModel(tree);
-            endpoints.AddRange(EndpointScanner.Scan(tree, model));
-            types.Add(tree, model);
+            endpoints.AddRange(EndpointScanner.Scan(tree, compilation).Select(e => new Endpoint(
+                e.Method,
+                e.Route,
+                ToCodeLocation(e.Location),
+                BoundParameters(e.Parameters))));
+            types.Add(tree, compilation.GetSemanticModel(tree));
         }
 
         return new CodeMap(endpoints, types);
@@ -159,14 +129,43 @@ public sealed class CodeMap
         return end > Prefix.Length ? location[Prefix.Length..end] : null;
     }
 
-    private static readonly Lazy<IReadOnlyList<MetadataReference>> RuntimeReferences = new(() =>
-        ((AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES") as string) ?? string.Empty)
-            .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries)
-            .Where(path => Path.GetFileName(path) is var name
-                           && (name.StartsWith("System.", StringComparison.Ordinal)
-                               || name is "System.dll" or "mscorlib.dll" or "netstandard.dll"))
-            .Select(path => (MetadataReference)MetadataReference.CreateFromFile(path))
-            .ToList());
+    /// <summary>Attributes that say where a value comes from; their <c>Name</c> overrides the parameter name.</summary>
+    private static readonly HashSet<string> BindingAttributes = new(StringComparer.Ordinal)
+    {
+        "FromQuery", "FromRoute", "FromHeader", "FromForm",
+    };
+
+    /// <summary>Parameters that never appear as OpenAPI parameters.</summary>
+    private static readonly HashSet<string> NonParameterAttributes = new(StringComparer.Ordinal)
+    {
+        "FromBody", "FromServices", "FromKeyedServices", "AsParameters",
+    };
+
+    private static Dictionary<string, CodeLocation> BoundParameters(IEnumerable<ParameterSyntax> parameters)
+    {
+        var result = new Dictionary<string, CodeLocation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var parameter in parameters)
+        {
+            var attributes = SyntaxHelpers.Attributes(parameter.AttributeLists).ToList();
+            if (attributes.Any(a => NonParameterAttributes.Contains(SyntaxHelpers.Name(a)))
+                || parameter.Type?.ToString() is "CancellationToken" or "HttpContext" or "HttpRequest" or "HttpResponse")
+            {
+                continue;
+            }
+
+            var name = attributes
+                .Where(a => BindingAttributes.Contains(SyntaxHelpers.Name(a)))
+                .Select(a => SyntaxHelpers.Property(a, "Name") is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } literal
+                    ? literal.Token.ValueText
+                    : null)
+                .FirstOrDefault(n => n is not null)
+                ?? parameter.Identifier.ValueText;
+
+            result.TryAdd(name, ToCodeLocation(parameter.Identifier.GetLocation()));
+        }
+
+        return result;
+    }
 
     internal static CodeLocation ToCodeLocation(Location location)
     {
