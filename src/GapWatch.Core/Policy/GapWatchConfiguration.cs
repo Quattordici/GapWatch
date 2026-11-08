@@ -13,6 +13,13 @@ public sealed record GapWatchConfiguration(CompatibilityPolicy Policy, Versionin
     /// </summary>
     public string? FailOn { get; init; }
 
+    /// <summary>
+    /// Plugin assemblies to load, as the file names them (<c>plugins[].path</c>), resolved against the configuration
+    /// file's folder when it was read from disk. Core never loads them: the CLI does, and passes the rules to
+    /// <see cref="CompatibilityCheck.Run"/>.
+    /// </summary>
+    public IReadOnlyList<string> Plugins { get; init; } = [];
+
     /// <summary>No configuration file: the default policy and Asp.Versioning defaults.</summary>
     public static GapWatchConfiguration Default { get; } = new(CompatibilityPolicy.Default, VersioningOptions.Default);
 }

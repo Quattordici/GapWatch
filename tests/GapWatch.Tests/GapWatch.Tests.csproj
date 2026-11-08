@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\GapWatch.Reporting\GapWatch.Reporting.csproj" />
     <ProjectReference Include="..\..\src\GapWatch.Roslyn\GapWatch.Roslyn.csproj" />
     <ProjectReference Include="..\..\src\GapWatch.Cli\GapWatch.Cli.csproj" />
+    <ProjectReference Include="..\..\samples\Acme.GapWatch.Rules\Acme.GapWatch.Rules.csproj" />
   </ItemGroup>
 
   <ItemGroup>

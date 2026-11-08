@@ -11,5 +11,7 @@
     <Authors>GapWatch contributors</Authors>
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <!-- One version for the tool and GapWatch.Sdk, so a plugin's SDK reference says which GapWatch it needs. -->
+    <Version>1.2.0</Version>
   </PropertyGroup>
 </Project>

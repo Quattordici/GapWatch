@@ -1,5 +1,6 @@
 using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
+using GapWatch.Sdk;
 
 namespace GapWatch.Core.Comparison;
 
@@ -13,8 +14,8 @@ public sealed class ContractComparer
         ArgumentNullException.ThrowIfNull(head);
 
         var findings = new List<Finding>();
-        var baselineOps = Index(baseline);
-        var headOps = Index(head);
+        var baselineOps = Pairing.Operations(baseline);
+        var headOps = Pairing.Operations(head);
 
         foreach (var (key, was) in baselineOps)
         {
@@ -44,17 +45,6 @@ public sealed class ContractComparer
         }
 
         return new ComparisonResult(FindingOrder.Sort(findings));
-    }
-
-    private static Dictionary<string, OperationContract> Index(ApiContract contract)
-    {
-        var map = new Dictionary<string, OperationContract>(StringComparer.Ordinal);
-        foreach (var operation in contract.Operations)
-        {
-            map.TryAdd(operation.Key, operation);
-        }
-
-        return map;
     }
 
     private static void CompareOperation(OperationContract was, OperationContract now, List<Finding> findings)
@@ -96,8 +86,8 @@ public sealed class ContractComparer
     private static void CompareParameters(
         OperationContract was, OperationContract now, AddFinding add)
     {
-        var before = ParameterIndex(was);
-        var after = ParameterIndex(now);
+        var before = Pairing.Parameters(was);
+        var after = Pairing.Parameters(now);
 
         foreach (var (key, previous) in before)
         {
@@ -146,35 +136,6 @@ public sealed class ContractComparer
                     current.Position);
             }
         }
-    }
-
-    private static Dictionary<string, ParameterContract> ParameterIndex(OperationContract operation)
-    {
-        var pathNames = PathTemplate.ParameterNames(operation.Path).ToList();
-        var map = new Dictionary<string, ParameterContract>(StringComparer.Ordinal);
-
-        foreach (var parameter in operation.Parameters)
-        {
-            string key;
-            if (parameter.Location == "path")
-            {
-                // Pair path parameters by position so that renaming {id} to {petId} is not a change.
-                var index = pathNames.IndexOf(parameter.Name);
-                key = index >= 0 ? $"path#{index}" : $"path:{parameter.Name}";
-            }
-            else if (parameter.Location == "header")
-            {
-                key = $"header:{parameter.Name.ToLowerInvariant()}";
-            }
-            else
-            {
-                key = $"{parameter.Location}:{parameter.Name}";
-            }
-
-            map.TryAdd(key, parameter);
-        }
-
-        return map;
     }
 
     private static void CompareRequestBody(
@@ -236,10 +197,8 @@ public sealed class ContractComparer
     private static void CompareResponses(
         OperationContract was, OperationContract now, AddFinding add)
     {
-        var before = was.Responses.GroupBy(r => r.StatusCode.ToUpperInvariant())
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
-        var after = now.Responses.GroupBy(r => r.StatusCode.ToUpperInvariant())
-            .ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        var before = Pairing.Responses(was);
+        var after = Pairing.Responses(now);
 
         foreach (var (code, previous) in before.OrderBy(r => r.Key, StringComparer.Ordinal))
         {

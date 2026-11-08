@@ -21,7 +21,8 @@ public sealed class ConfigurationException(string message) : Exception(message);
 ///     { "rule": "GW025", "operation": "GET /pets", "location": "response 200 application/json: $[].nickname",
 ///       "justification": "Never populated; removal agreed with all consumers." }
 ///   ],
-///   "versioning": { "pathSegment": "^v\\d+(\\.\\d+)?$", "parameters": ["api-version"], "mediaTypeParameter": "v" }
+///   "versioning": { "pathSegment": "^v\\d+(\\.\\d+)?$", "parameters": ["api-version"], "mediaTypeParameter": "v" },
+///   "plugins": [ { "path": "tools/Acme.GapWatch.Rules.dll" } ]
 /// }
 /// </code>
 /// <c>"versioning": false</c> turns version detection off.
@@ -47,6 +48,22 @@ public static class ConfigFile
     /// <exception cref="ConfigurationException">The file is missing or invalid.</exception>
     public static GapWatchConfiguration LoadConfiguration(string path)
     {
+        var configuration = Read(path);
+        if (configuration.Plugins.Count == 0)
+        {
+            Validate(configuration, RuleSet.BuiltIn, path);
+        }
+
+        return configuration;
+    }
+
+    /// <summary>
+    /// Loads a configuration file without checking rule ids, which needs the plugins loaded first; the caller then
+    /// calls <see cref="Validate"/> with the rules of the run.
+    /// </summary>
+    /// <exception cref="ConfigurationException">The file is missing or invalid in any other way.</exception>
+    internal static GapWatchConfiguration Read(string path)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         if (!File.Exists(path))
@@ -56,7 +73,9 @@ public static class ConfigFile
 
         try
         {
-            return ParseConfiguration(File.ReadAllText(path), path);
+            var configuration = ParseUnvalidated(File.ReadAllText(path), path);
+            var folder = Path.GetDirectoryName(Path.GetFullPath(path))!;
+            return configuration with { Plugins = configuration.Plugins.Select(p => Path.GetFullPath(p, folder)).ToList() };
         }
         catch (IOException ex)
         {
@@ -65,8 +84,23 @@ public static class ConfigFile
     }
 
     /// <summary>Parses and validates configuration JSON. <paramref name="source"/> labels error messages.</summary>
+    /// <remarks>
+    /// With <c>plugins</c>, rule ids can only be checked once the plugins are loaded, so the caller then validates with
+    /// <see cref="Validate"/>. Plugin paths are returned as written.
+    /// </remarks>
     /// <exception cref="ConfigurationException">The JSON is malformed or describes an invalid configuration.</exception>
     public static GapWatchConfiguration ParseConfiguration(string json, string source)
+    {
+        var configuration = ParseUnvalidated(json, source);
+        if (configuration.Plugins.Count == 0)
+        {
+            Validate(configuration, RuleSet.BuiltIn, source);
+        }
+
+        return configuration;
+    }
+
+    private static GapWatchConfiguration ParseUnvalidated(string json, string source)
     {
         ArgumentNullException.ThrowIfNull(json);
         ArgumentNullException.ThrowIfNull(source);
@@ -91,6 +125,7 @@ public static class ConfigFile
             var suppressions = new List<Suppression>();
             var versioning = VersioningOptions.Default;
             string? failOn = null;
+            var plugins = new List<string>();
 
             foreach (var property in root.EnumerateObject())
             {
@@ -114,17 +149,58 @@ public static class ConfigFile
                     case "versioning":
                         versioning = ReadVersioning(property.Value, source);
                         break;
+                    case "plugins":
+                        ReadPlugins(property.Value, source, plugins);
+                        break;
                     default:
                         throw new ConfigurationException(
-                            $"{source}: unknown property '{property.Name}'. Expected 'rules', 'suppressions', 'failOn' or 'versioning'.");
+                            $"{source}: unknown property '{property.Name}'. Expected 'rules', 'suppressions', 'failOn', 'versioning' or 'plugins'.");
                 }
             }
 
-            var policy = new CompatibilityPolicy(overrides, disabled, suppressions);
-            var problems = policy.Validate();
-            return problems.Count == 0
-                ? new GapWatchConfiguration(policy, versioning) { FailOn = failOn }
-                : throw new ConfigurationException($"{source}: {string.Join(" ", problems)}");
+            return new GapWatchConfiguration(new CompatibilityPolicy(overrides, disabled, suppressions), versioning)
+            {
+                FailOn = failOn,
+                Plugins = plugins,
+            };
+        }
+    }
+
+    /// <summary>Checks the policy against the rules of the run: the built-in ones plus those of the loaded plugins.</summary>
+    /// <exception cref="ConfigurationException">An id is unknown, a justification is missing, or a rule is both off and given a severity.</exception>
+    public static void Validate(GapWatchConfiguration configuration, RuleSet rules, string source)
+    {
+        ArgumentNullException.ThrowIfNull(configuration);
+        ArgumentNullException.ThrowIfNull(rules);
+
+        var problems = configuration.Policy.Validate(rules);
+        if (problems.Count > 0)
+        {
+            throw new ConfigurationException($"{source}: {string.Join(" ", problems)}");
+        }
+    }
+
+    private static void ReadPlugins(JsonElement array, string source, List<string> plugins)
+    {
+        Expect(array, JsonValueKind.Array, source, "$.plugins");
+
+        var index = 0;
+        foreach (var item in array.EnumerateArray())
+        {
+            var path = $"$.plugins[{index++}]";
+            Expect(item, JsonValueKind.Object, source, path);
+
+            string? assembly = null;
+            foreach (var property in item.EnumerateObject())
+            {
+                assembly = property.Name == "path"
+                    ? ReadString(property.Value, source, $"{path}.path")
+                    : throw new ConfigurationException($"{source}: unknown property '{path}.{property.Name}'. Expected 'path'.");
+            }
+
+            plugins.Add(string.IsNullOrWhiteSpace(assembly)
+                ? throw new ConfigurationException($"{source}: {path} needs a 'path' to the plugin assembly.")
+                : assembly);
         }
     }
 

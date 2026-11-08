@@ -1,5 +1,6 @@
 using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
+using GapWatch.Sdk;
 
 namespace GapWatch.Core.Comparison;
 
@@ -400,8 +401,8 @@ internal static class SchemaComparer
         SchemaFindingSink sink,
         ComponentScope? scope)
     {
-        var before = Visible(baseline, direction);
-        var after = Visible(head, direction);
+        var before = Pairing.VisibleProperties(baseline, direction);
+        var after = Pairing.VisibleProperties(head, direction);
 
         foreach (var (name, was) in before.OrderBy(p => p.Key, StringComparer.Ordinal))
         {
@@ -487,8 +488,8 @@ internal static class SchemaComparer
             return;
         }
 
-        var before = ByKey(baseline.Variants);
-        var after = ByKey(head.Variants);
+        var before = Pairing.Variants(baseline.Variants);
+        var after = Pairing.Variants(head.Variants);
 
         foreach (var (key, was) in before.OrderBy(v => v.Key, StringComparer.Ordinal))
         {
@@ -511,34 +512,6 @@ internal static class SchemaComparer
         {
             report(RuleCatalog.VariantAdded, path, $"New alternative '{key}' can be returned.", after[key].Position);
         }
-    }
-
-    private static Dictionary<string, PropertyContract> Visible(SchemaContract schema, Direction direction) =>
-        schema.Properties
-            .Where(p => direction == Direction.Request ? !p.Value.ReadOnly : !p.Value.WriteOnly)
-            .ToDictionary(p => p.Key, p => p.Value, StringComparer.Ordinal);
-
-    private static Dictionary<string, SchemaContract> ByKey(IReadOnlyList<SchemaContract> variants)
-    {
-        var map = new Dictionary<string, SchemaContract>(StringComparer.Ordinal);
-        foreach (var variant in variants)
-        {
-            var key = variant.ReferenceName ?? Signature(variant);
-            while (!map.TryAdd(key, variant))
-            {
-                key += "'";
-            }
-        }
-
-        return map;
-    }
-
-    private static string Signature(SchemaContract schema)
-    {
-        var types = schema.Types.Count == 0 ? "any" : string.Join("|", schema.Types);
-        return schema.Properties.Count == 0
-            ? types
-            : $"{types}{{{string.Join(",", schema.Properties.Keys.OrderBy(k => k, StringComparer.Ordinal))}}}";
     }
 
     private static string DescribeTypes(IReadOnlyList<string> types) =>

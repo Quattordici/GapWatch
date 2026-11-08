@@ -31,7 +31,7 @@ public static class GapWatchCli
 
         Usage:
           gapwatch compare <base> <head> [options]
-          gapwatch rules [--format console|markdown]
+          gapwatch rules [--format console|markdown] [--config <file>] [--plugin <file>]...
           gapwatch --version | --help
 
         compare options:
@@ -50,6 +50,9 @@ public static class GapWatchCli
                                           tree. <base> is then a path in the repository, usually the same as <head>.
           --input <openapi|csharp>        What <base> and <head> are (default: openapi). With csharp, they are folders
                                           of ASP.NET Core source and the contract is read from the code.
+          --plugin <file>                 Load custom rules from a plugin assembly, in addition to the plugins in
+                                          the config file. Repeatable. Plugins run with full trust: load only
+                                          assemblies you would also run in your build.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change. With one document per API version, pass two folders: documents
@@ -59,7 +62,7 @@ public static class GapWatchCli
         Exit codes:
           0  no finding at or above the --fail-on threshold
           1  at least one finding at or above the threshold
-          2  usage error or unreadable input
+          2  usage error, unreadable input, or a plugin that cannot be loaded or fails
         """;
 
     /// <summary>Runs the CLI and returns the process exit code.</summary>
@@ -102,6 +105,10 @@ public static class GapWatchCli
         {
             return Fail(error, ex.Message);
         }
+        catch (PluginException ex)
+        {
+            return Fail(error, ex.Message);
+        }
         catch (IOException ex)
         {
             return Fail(error, ex.Message);
@@ -114,7 +121,7 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline", "--base-ref", "--input"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline", "--base-ref", "--input", "--plugin"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
@@ -123,9 +130,7 @@ public static class GapWatchCli
         var format = options.Format();
         var input = options.Input();
 
-        var configuration = options.Values.TryGetValue("--config", out var configPath)
-            ? ConfigFile.LoadConfiguration(configPath)
-            : GapWatchConfiguration.Default;
+        var (configuration, rules) = LoadConfiguration(options);
         var failOn = options.FailOn(configuration.FailOn);
 
         var basePath = options.Positional[0];
@@ -139,7 +144,7 @@ public static class GapWatchCli
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)
             : Baseline.Empty;
-        var check = CompatibilityCheck.Run(baseContract, head, configuration, accepted, DateOnly.FromDateTime(DateTime.UtcNow));
+        var check = CompatibilityCheck.Run(baseContract, head, configuration, accepted, DateOnly.FromDateTime(DateTime.UtcNow), rules);
         var result = check.Result;
         if (options.Values.TryGetValue("--write-baseline", out var newBaselinePath))
         {
@@ -170,6 +175,7 @@ public static class GapWatchCli
             ToolVersion = ToolVersion(),
             FailOn = failOn,
             FallbackHeadDocument = fallbackHeadDocument,
+            Rules = rules,
         };
         var report = renderer.Render(result, context);
 
@@ -191,7 +197,7 @@ public static class GapWatchCli
 
     private static int Rules(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format"]);
+        var options = Options.Parse(args, allowed: ["--format", "--config", "--plugin"]);
         if (options.Positional.Count != 0)
         {
             throw new UsageException("rules takes no positional arguments.");
@@ -203,8 +209,30 @@ public static class GapWatchCli
             throw new UsageException($"rules supports 'console' and 'markdown', not '{format}'.");
         }
 
-        output.Write(format == "markdown" ? RuleListRenderer.RenderMarkdown() : RuleListRenderer.RenderConsole());
+        var (_, rules) = LoadConfiguration(options);
+        output.Write(format == "markdown" ? RuleListRenderer.RenderMarkdown(rules) : RuleListRenderer.RenderConsole(rules));
         return ExitCodes.Success;
+    }
+
+    /// <summary>
+    /// The configuration file, if any, and the rules of the run: the built-in ones plus the plugins named in the file
+    /// (relative to it) and with <c>--plugin</c> (relative to the working directory). With plugins, the policy is
+    /// validated once their rule ids are known.
+    /// </summary>
+    private static (GapWatchConfiguration Configuration, RuleSet Rules) LoadConfiguration(Options options)
+    {
+        var configuration = options.Values.TryGetValue("--config", out var configPath)
+            ? ConfigFile.Read(configPath)
+            : GapWatchConfiguration.Default;
+
+        var plugins = configuration.Plugins.Concat(options.Repeated("--plugin").Select(Path.GetFullPath)).ToList();
+        var rules = plugins.Count == 0 ? RuleSet.BuiltIn : PluginLoader.Load(plugins);
+        if (configPath is not null)
+        {
+            ConfigFile.Validate(configuration, rules, configPath);
+        }
+
+        return (configuration, rules);
     }
 
     private static int PrintUsage(TextWriter output)
@@ -233,9 +261,16 @@ public static class GapWatchCli
 
     private sealed class Options
     {
+
         public List<string> Positional { get; } = [];
 
         public Dictionary<string, string> Values { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Options that may be given more than once, with every value in order.</summary>
+        private Dictionary<string, List<string>> All { get; } = new(StringComparer.Ordinal);
+
+        /// <summary>Every value of a repeatable option, in order; empty when it was not given.</summary>
+        public IReadOnlyList<string> Repeated(string name) => All.GetValueOrDefault(name) ?? [];
 
         public static Options Parse(string[] args, string[] allowed)
         {
@@ -275,6 +310,12 @@ public static class GapWatchCli
                 }
 
                 options.Values[name] = value;
+                if (!options.All.TryGetValue(name, out var values))
+                {
+                    options.All[name] = values = [];
+                }
+
+                values.Add(value);
             }
 
             return options;

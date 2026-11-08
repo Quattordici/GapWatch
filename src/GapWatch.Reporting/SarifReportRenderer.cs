@@ -44,7 +44,8 @@ public sealed class SarifReportRenderer : IReportRenderer
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(context);
 
-        var ruleIndex = RuleCatalog.All
+        var rules = Rules(result, context);
+        var ruleIndex = rules
             .Select((rule, index) => (rule.Id, index))
             .ToDictionary(x => x.Id, x => x.index, StringComparer.Ordinal);
 
@@ -57,7 +58,7 @@ public sealed class SarifReportRenderer : IReportRenderer
             json.WriteStartArray("runs");
             json.WriteStartObject();
 
-            WriteTool(json, context);
+            WriteTool(json, context, rules);
             WriteInvocation(json, result);
             WriteArtifacts(json, context);
 
@@ -115,7 +116,22 @@ public sealed class SarifReportRenderer : IReportRenderer
         return string.Join('/', label.Replace('\\', '/').Split('/').Select(Uri.EscapeDataString));
     }
 
-    private static void WriteTool(Utf8JsonWriter json, ReportContext context)
+    /// <summary>
+    /// The rules of the run, plus any rule a finding carries that the rule set does not list, so every result has a
+    /// <c>ruleIndex</c>.
+    /// </summary>
+    private static List<RuleDescriptor> Rules(ComparisonResult result, ReportContext context)
+    {
+        var rules = context.Rules.All.ToList();
+        var known = rules.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        rules.AddRange(result.Findings.Concat(result.Suppressed.Select(s => s.Finding))
+            .Select(f => f.Rule)
+            .Where(rule => known.Add(rule.Id))
+            .OrderBy(rule => rule.Id, StringComparer.Ordinal));
+        return rules;
+    }
+
+    private static void WriteTool(Utf8JsonWriter json, ReportContext context, IReadOnlyList<RuleDescriptor> rules)
     {
         json.WriteStartObject("tool");
         json.WriteStartObject("driver");
@@ -127,17 +143,26 @@ public sealed class SarifReportRenderer : IReportRenderer
 
         json.WriteString("informationUri", InformationUri);
         json.WriteStartArray("rules");
-        foreach (var rule in RuleCatalog.All)
+        foreach (var rule in rules)
         {
+            // A plugin rule is documented where its author says, if anywhere; never in GapWatch's rule list.
+            var builtIn = context.Rules.PluginOf(rule.Id) is null && rule.Id.StartsWith("GW", StringComparison.Ordinal);
+            var helpUri = builtIn ? RulesHelpUri : rule.HelpUri?.ToString();
+
             json.WriteStartObject();
             json.WriteString("id", rule.Id);
             json.WriteString("name", rule.Name);
             WriteText(json, "shortDescription", rule.Name);
             WriteText(json, "fullDescription", rule.Description);
-            json.WriteString("helpUri", RulesHelpUri);
+            if (helpUri is not null)
+            {
+                json.WriteString("helpUri", helpUri);
+            }
+
             json.WriteStartObject("help");
-            json.WriteString("text", $"{rule.Description} See {RulesHelpUri}");
-            json.WriteString("markdown", $"**{rule.Id} {rule.Name}** ({rule.DefaultSeverity} by default)\n\n{rule.Description}\n\n[All GapWatch rules]({RulesHelpUri})");
+            json.WriteString("text", helpUri is null ? rule.Description : $"{rule.Description} See {helpUri}");
+            var link = helpUri is null ? string.Empty : builtIn ? $"\n\n[All GapWatch rules]({helpUri})" : $"\n\n[Documentation]({helpUri})";
+            json.WriteString("markdown", $"**{rule.Id} {rule.Name}** ({rule.DefaultSeverity} by default)\n\n{rule.Description}{link}");
             json.WriteEndObject();
             json.WriteStartObject("defaultConfiguration");
             json.WriteString("level", Level(rule.DefaultSeverity));

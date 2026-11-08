@@ -9,7 +9,6 @@
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>gapwatch</ToolCommandName>
     <PackageId>GapWatch</PackageId>
-    <Version>1.1.0</Version>
     <Description>Detects breaking changes between two versions of an HTTP API contract (OpenAPI), direction-aware and explainable.</Description>
     <PackageTags>openapi;api;breaking-changes;compatibility;dotnet-tool</PackageTags>
   </PropertyGroup>

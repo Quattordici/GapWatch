@@ -37,7 +37,12 @@ The file is optional; without it every rule reports with its default severity. G
     "pathSegment": "^v\\d+(\\.\\d+)?$",
     "parameters": ["api-version"],
     "mediaTypeParameter": "v"
-  }
+  },
+
+  // Custom rule plugins, relative to this file. --plugin adds more. See plugins.md.
+  "plugins": [
+    { "path": "tools/gapwatch/Acme.GapWatch.Rules.dll" }
+  ]
 }
 ```
 
@@ -127,6 +132,10 @@ The `versioning` section controls how GW060 to GW063 find the API version of an 
 `"versioning": false` turns detection off, and every change is reported with the version-unaware rules (GW001, GW002, GW003, GW023, GW043). Folder mode still labels each operation with its document's version, because that is how the documents are told apart.
 
 Severity overrides, suppressions and baselines apply to the version findings like to any other: to treat retiring a deprecated version as expected, set `"GW061": "info"` and keep GW060 Breaking.
+
+## Plugins
+
+`plugins` lists assemblies with [custom rules](plugins.md), each as `{ "path": "..." }` relative to the configuration file. Their rule ids can then be used in `rules` and `suppressions` like built-in ids. The file is checked once the plugins are loaded, so an id from a plugin that is not loaded is an error, as any unknown id is.
 
 ## Failing the build
 
