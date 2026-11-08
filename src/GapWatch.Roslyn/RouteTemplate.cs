@@ -53,7 +53,13 @@ internal static partial class RouteTemplate
         return area is null ? result : result.Replace("[area]", area, StringComparison.OrdinalIgnoreCase);
     }
 
+    /// <summary>The parameters of a route template, in order, with their first constraint (<c>int</c> in <c>{id:int?}</c>).</summary>
+    public static IReadOnlyList<(string Name, string? Constraint)> Parameters(string route) =>
+        Parameter().Matches(route)
+            .Select(m => (m.Groups["name"].Value, m.Groups["constraint"].Success ? m.Groups["constraint"].Value : null))
+            .ToList();
+
     // {name}, {name:int}, {name?}, {name=default}, {*name}, {**name:constraint}
-    [GeneratedRegex(@"\{\*{0,2}(?<name>[^}:=?]+)[^}]*\}")]
+    [GeneratedRegex(@"\{\*{0,2}(?<name>[^}:=?]+)(:(?<constraint>[A-Za-z]+))?[^}]*\}")]
     private static partial Regex Parameter();
 }

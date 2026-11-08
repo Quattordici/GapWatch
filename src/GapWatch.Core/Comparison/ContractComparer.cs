@@ -39,7 +39,7 @@ public sealed class ContractComparer
                     RuleCatalog.OperationAdded,
                     now.Display,
                     "operation",
-                    $"Operation '{now.Display}' was added.") { Position = now.Position, Document = now.Document });
+                    $"Operation '{now.Display}' was added.") { Position = now.Position, Document = now.Position?.File ?? now.Document });
             }
         }
 
@@ -59,13 +59,16 @@ public sealed class ContractComparer
 
     private static void CompareOperation(OperationContract was, OperationContract now, List<Finding> findings)
     {
-        void Add(RuleDescriptor rule, string location, string message, SourcePosition? position, SchemaOrigin? origin = null) =>
+        void Add(RuleDescriptor rule, string location, string message, SourcePosition? position, SchemaOrigin? origin = null)
+        {
+            var at = position ?? now.Position;
             findings.Add(new Finding(rule, now.Display, location, message)
             {
                 Origin = origin,
-                Position = position ?? now.Position,
-                Document = now.Document,
+                Position = at,
+                Document = at?.File ?? now.Document,
             });
+        }
 
         if (!was.Deprecated && now.Deprecated)
         {

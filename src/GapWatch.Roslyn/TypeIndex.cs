@@ -156,14 +156,14 @@ internal sealed class TypeIndex
 
     private static string? JsonPropertyName(IPropertySymbol property) =>
         Attributes(property)
-            .Where(a => EndpointScanner.Name(a) == "JsonPropertyName")
+            .Where(a => SyntaxHelpers.Name(a) == "JsonPropertyName")
             .Select(a => a.ArgumentList?.Arguments.FirstOrDefault()?.Expression)
             .OfType<LiteralExpressionSyntax>()
             .Select(l => l.Token.ValueText)
             .FirstOrDefault();
 
     private static bool HasAttribute(IPropertySymbol property, string name) =>
-        Attributes(property).Any(a => EndpointScanner.Name(a) == name && a.ArgumentList is null);
+        Attributes(property).Any(a => SyntaxHelpers.Name(a) == name && a.ArgumentList is null);
 
     /// <summary>Attributes on the property declaration, or on the positional record parameter that declares it.</summary>
     private static IEnumerable<AttributeSyntax> Attributes(IPropertySymbol property) =>
