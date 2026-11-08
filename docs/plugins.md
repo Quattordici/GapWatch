@@ -94,7 +94,7 @@ A `PluginFinding` has a rule id, a location and a message:
 - **The location** is one of the fixed `FindingLocation` shapes: `Operation`, `Parameter`, `RequestBody`, `RequestContent`, `Response`, `ResponseMediaType`, `ResponseContent` and `Security`. Suppressions, baselines and SARIF fingerprints match on the location string, so a plugin cannot invent a new one. Take it from `node.At` when you report a schema node.
 - **The message** is one complete sentence.
 
-GapWatch fills in the rest. The position and document come from the head operation, never from the plugin. A plugin does not see the built-in findings and cannot change or remove them: changing what a built-in rule reports is what [configuration](configuration.md) is for.
+GapWatch fills in the rest. The position and document come from the head contract, never from the plugin: the element the location names (the parameter, the response, the property at `$.items[].name`), or the closest enclosing one the contract has a position for, as for a built-in finding at the same location. A plugin does not see the built-in findings and cannot change or remove them: changing what a built-in rule reports is what [configuration](configuration.md) is for.
 
 A rule must not read configuration. Its severity, `off` and its suppressions are set in `gapwatch.json`, like any other rule's. It must return the same findings for the same input.
 
