@@ -20,9 +20,12 @@ public static class CSharpContractReader
     public static ApiContract Load(string directory) => FromSources(SourceCompilation.ReadDirectory(directory));
 
     /// <summary>Reads in-memory sources: <c>(path, text)</c> pairs. The path is used verbatim in positions.</summary>
-    public static ApiContract FromSources(IEnumerable<(string Path, string Text)> sources)
+    public static ApiContract FromSources(IEnumerable<(string Path, string Text)> sources) =>
+        Read(SourceCompilation.Compile(sources));
+
+    /// <summary>Reads the contract from an existing compilation, so <see cref="CodeMap"/> can share it.</summary>
+    internal static ApiContract Read(Microsoft.CodeAnalysis.Compilation compilation)
     {
-        var compilation = SourceCompilation.Compile(sources);
         var reader = new OperationReader(compilation, new SchemaMapper(compilation, JsonConventions.Find(compilation)));
 
         var operations = compilation.SyntaxTrees

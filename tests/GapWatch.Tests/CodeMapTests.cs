@@ -18,7 +18,7 @@ public sealed class CodeMapTests
     private static CodeMap Single(string source) => CodeMap.FromSources([("Api.cs", source)]);
 
     private static string Routes(CodeMap map) =>
-        string.Join(", ", map.Endpoints.Select(e => $"{e.Method} {e.Route}").Order(StringComparer.Ordinal));
+        string.Join(", ", map.Contract.Operations.Select(o => o.Display).Distinct().Order(StringComparer.Ordinal));
 
     private static Finding At(string operation, FindingLocation? location = null, SchemaOrigin? origin = null) =>
         new(RuleCatalog.TypeChanged, operation, location ?? FindingLocation.Operation.Instance, "m") { Origin = origin };
@@ -30,7 +30,7 @@ public sealed class CodeMapTests
     [Test]
     public void Controller_actions_and_minimal_api_endpoints_are_found_with_their_routes()
     {
-        Routes(Petstore()).ShouldBe("DELETE /pets/{id}, GET /health, GET /pets/{id:long}, GET Pets, POST Pets");
+        Routes(Petstore()).ShouldBe("DELETE /pets/{id}, GET /Pets, GET /health, GET /pets/{id}, POST /Pets");
     }
 
     [Test]
@@ -116,7 +116,7 @@ public sealed class CodeMapTests
             public class HelperController { [HttpGet("/nope")] public object Get() => null!; }
             """);
 
-        Routes(map).ShouldBe("GET /status, GET api/v1/Orders/items/{**rest}, GET api/v1/Orders/{id:int?}, PUT api/v1/Orders/Rename/{code=none}");
+        Routes(map).ShouldBe("GET /api/v1/Orders/items/{rest}, GET /api/v1/Orders/{id}, GET /status, PUT /api/v1/Orders/Rename/{code}");
         map.Locate(At("GET /api/v1/orders/{orderId}")).ShouldNotBeNull();
         map.Locate(At("GET /api/v1/orders/items/{rest}")).ShouldNotBeNull();
         map.Locate(At("PUT /api/v1/orders/rename/{code}")).ShouldNotBeNull();
@@ -136,7 +136,7 @@ public sealed class CodeMapTests
             static class Paths { public const string Root = "/"; }
             """);
 
-        Routes(map).ShouldBe("GET /, GET /api/v1/{id}, POST /api/v1/orders/");
+        Routes(map).ShouldBe("GET /, GET /api/v1/{id}, POST /api/v1/orders");
     }
 
     [Test]
@@ -154,5 +154,41 @@ public sealed class CodeMapTests
         annotated.Findings.Where(f => f.Rule == RuleCatalog.TypeChanged).Select(f => f.Code).Distinct()
             .ShouldHaveSingleItem().ShouldBe(new CodeLocation(File("Models.cs"), 16, 12));
         annotated.Findings.Single(f => f.Rule == RuleCatalog.OperationRemoved).Code.ShouldBeNull();
+    }
+
+    [Test]
+    public void A_parameter_bound_through_AsParameters_maps_to_its_property()
+    {
+        var map = Single("""
+            public sealed record Filter(string Status, int Page = 1);
+            public static class Endpoints
+            {
+                public static void Map(WebApplication app) =>
+                    app.MapGet("/pets", ([AsParameters] Filter filter) => Results.Ok());
+            }
+            """);
+
+        map.Locate(At("GET /pets", Query("status"))).ShouldBe(new CodeLocation("Api.cs", 1, 36));
+        map.Locate(At("GET /pets", Query("page"))).ShouldBe(new CodeLocation("Api.cs", 1, 48));
+    }
+
+    [Test]
+    public void An_endpoint_with_an_api_version_route_segment_maps_for_each_version()
+    {
+        var map = Single("""
+            [ApiController]
+            [ApiVersion("1.0")]
+            [ApiVersion("2.0")]
+            [Route("api/v{version:apiVersion}/pets")]
+            public sealed class PetsController : ControllerBase
+            {
+                [HttpGet("{id}")] public IActionResult Get(long id) => Ok();
+            }
+            """);
+
+        var action = new CodeLocation("Api.cs", 7, 44);
+        map.Locate(At("GET /api/v1/pets/{petId}")).ShouldBe(action);
+        map.Locate(At("GET /api/v2/pets/{petId}")).ShouldBe(action);
+        map.Locate(At("GET /api/v2/pets/{petId}", PathParameter("petId"))).ShouldBe(action);
     }
 }
