@@ -92,6 +92,10 @@ public static class ApiVersionAnalyzer
         var newlyDeprecated = nowDeprecated.Intersect(baseVersions).Except(wasDeprecated).ToHashSet(StringComparer.Ordinal);
 
         var findings = result.Findings.ToList();
+        var declared = DeclaredVersionParameters(baseline, after, options);
+        findings.RemoveAll(f => f.Rule == RuleCatalog.EnumValueRemoved
+                                && f.At is FindingLocation.Parameter { SchemaPath: FindingLocation.Root } at
+                                && declared.Contains((f.Operation, at.Name, at.In)));
         var replacements = new List<(RuleDescriptor Rule, string Version, string Operation, OperationContract? Head)>();
         var headByKey = after.GroupBy(o => o.Operation.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         var baseByKey = before.GroupBy(o => o.Operation.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
@@ -120,7 +124,9 @@ public static class ApiVersionAnalyzer
         {
             baseByKey.TryGetValue(now.Operation.Key, out var was);
             var gained = now.Keys.Except(was?.Keys ?? []).ToList();
-            if (gained.Count == 0 || !gained.All(added.Contains))
+            var madeExplicit = was is null && now.Source == Source.Parameter
+                               && declared.Contains((now.Operation.Display, now.Parameter!.Name, now.Parameter.Location));
+            if (gained.Count == 0 || madeExplicit || !gained.All(added.Contains))
             {
                 continue;
             }
@@ -220,6 +226,42 @@ public static class ApiVersionAnalyzer
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// Version parameters that only declared what was already true: the base operation had the parameter without an
+    /// enum, and the head lists in it only versions the head operation has anyway (from its document, path or this
+    /// enum). Asp.Versioning 10 started emitting that enum; a server never accepted other versions there, so neither
+    /// GW023 nor GW062 applies. A version that is really removed still gets GW060.
+    /// </summary>
+    private static HashSet<(string Operation, string Name, string In)> DeclaredVersionParameters(
+        ApiContract baseline, IReadOnlyList<Versioned> after, VersioningOptions options)
+    {
+        var declared = new HashSet<(string, string, string)>();
+        var baseOperations = baseline.Operations.GroupBy(o => o.Key, StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
+        foreach (var now in after)
+        {
+            if (!baseOperations.TryGetValue(now.Operation.Key, out var was))
+            {
+                continue;
+            }
+
+            foreach (var parameter in now.Operation.Parameters.Where(p =>
+                         p.Location is "query" or "header"
+                         && p.Schema.EnumValues.Count > 0
+                         && options.Parameters.Contains(p.Name, StringComparer.OrdinalIgnoreCase)))
+            {
+                var before = was.Parameters.FirstOrDefault(p =>
+                    string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase) && p.Location == parameter.Location);
+                if (before is { Schema.EnumValues.Count: 0 }
+                    && parameter.Schema.EnumValues.Where(v => v != "null").All(v => now.Keys.Contains(Canonical(v), StringComparer.Ordinal)))
+                {
+                    declared.Add((now.Operation.Display, parameter.Name, parameter.Location));
+                }
+            }
+        }
+
+        return declared;
     }
 
     private static HashSet<string> VersionSet(IEnumerable<Versioned> operations) =>

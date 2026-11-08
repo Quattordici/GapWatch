@@ -49,7 +49,9 @@ internal sealed class SchemaMapper(Compilation compilation, JsonConventions json
         }
 
         var schema = Annotate(MapNonNullable(type.WithNullableAnnotation(NullableAnnotation.NotAnnotated), attributes), attributes);
-        return type.NullableAnnotation == NullableAnnotation.Annotated && type.IsReferenceType ? schema with { Nullable = true } : schema;
+        return type.IsReferenceType && type.NullableAnnotation is NullableAnnotation.Annotated or NullableAnnotation.None
+            ? schema with { Nullable = true }
+            : schema;
     }
 
     private SchemaContract MapNonNullable(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes)

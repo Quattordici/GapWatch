@@ -106,7 +106,7 @@ public sealed class PluginRuleTests
     }
 
     [Test]
-    public void The_finding_takes_its_position_from_the_head_operation_never_from_the_plugin()
+    public void An_operation_finding_takes_its_position_from_the_head_operation_never_from_the_plugin()
     {
         var finding = CompatibilityCheck.Run(OnlyGet, GetAndPost, GapWatchConfiguration.Default, rules: Acme.Rules())
             .Result.Findings.First(f => f.Rule.Id == "ACME001");
@@ -115,6 +115,41 @@ public sealed class PluginRuleTests
         finding.Position.ShouldBe(GetAndPost.Operations.Single(o => o.Method == "POST").Position);
         finding.At.ShouldBe(FindingLocation.Operation.Instance);
     }
+
+    [Test]
+    public void A_finding_inside_the_operation_points_at_the_element_its_location_names()
+    {
+        // Where a built-in finding at the same location would point, so code scanning annotates the same line.
+        var head = TestSpec.Parse(TestSpec.Operation("get", "/pets", """
+            "parameters": [ { "name": "limit", "in": "query", "schema": { "type": "integer" } } ],
+            "responses": { "200": { "description": "d", "content": { "application/json": { "schema": {
+                "type": "object", "properties": { "items": { "type": "array", "items": { "type": "object",
+                    "properties": { "name": { "type": "string" } } } } } } } } } }
+            """));
+        var rule = new RuleDescriptor("POS1", "Where", Severity.Info, "Reports at fixed locations.");
+        FindingLocation[] locations =
+        [
+            new FindingLocation.Parameter("limit", "query"),
+            new FindingLocation.ResponseContent("200", "application/json", "$.items[].name"),
+            new FindingLocation.ResponseContent("200", "application/json", "$.missing"),
+            new FindingLocation.Response("200"),
+        ];
+        var plugin = new DelegatePlugin("POS", [rule], (_, _) => locations.Select(at => new PluginFinding("POS1", at, "Here.")));
+
+        var findings = CompatibilityCheck.Run(head, head, GapWatchConfiguration.Default, rules: RuleSet.With([plugin])).Result.Findings;
+
+        var operation = head.Operations.Single();
+        var response = operation.Responses.Single();
+        var items = response.Content["application/json"].Properties["items"];
+        Position(findings, "parameter 'limit' (query)").ShouldBe(operation.Parameters.Single().Position);
+        Position(findings, "response 200 application/json: $.items[].name").ShouldBe(items.Schema.Items!.Properties["name"].Position);
+        Position(findings, "response 200 application/json: $.missing").ShouldBe(response.Content["application/json"].Position);
+        Position(findings, "response 200").ShouldBe(response.Position);
+        operation.Parameters.Single().Position.ShouldNotBe(operation.Position);
+    }
+
+    private static SourcePosition? Position(IEnumerable<Finding> findings, string location) =>
+        findings.Single(f => f.Location == location).Position;
 
     [Test]
     public void A_plugin_that_throws_stops_the_check_and_names_the_plugin_and_operation()

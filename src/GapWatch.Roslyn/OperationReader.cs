@@ -127,20 +127,23 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
                 case Source.Path:
                     var declared = route.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)).Name ?? name;
                     bound.Add(declared);
-                    parameters.Add(new ParameterContract(declared, "path", true, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(declared, "path", true, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Query:
-                    parameters.Add(new ParameterContract(name, "query", required, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "query", required, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Header:
-                    parameters.Add(new ParameterContract(name, "header", required, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "header", required, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Form:
                     form.Add((name, FormSchema(type, attributes), required, position));
                     break;
                 case Source.Body:
-                    var schema = schemas.Map(type, attributes);
-                    body = new RequestBodyContract(required, ContentTypes(Consumes(endpoint, model), [Json]).ToDictionary(t => t, _ => schema))
+                    var schema = RootSchema(type, attributes);
+
+                    // MVC infers an optional body only from a nullable annotation; an oblivious one stays required.
+                    var bodyRequired = required || (endpoint.IsController && IsOblivious(type));
+                    body = new RequestBodyContract(bodyRequired, ContentTypes(Consumes(endpoint, model), [Json]).ToDictionary(t => t, _ => schema))
                     {
                         Position = position,
                     };
@@ -308,7 +311,8 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
 
     /// <summary>
     /// <c>[Required]</c> or <c>[BindRequired]</c> makes a value required; otherwise it is required unless it is nullable
-    /// (<c>int?</c>, <c>string?</c>) or has a default value, as ASP.NET Core binding treats it.
+    /// (<c>int?</c>, <c>string?</c>, or a reference type in a nullable-oblivious context) or has a default value, as
+    /// ASP.NET Core binding treats it.
     /// </summary>
     private static bool IsRequired(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes, bool hasDefault) =>
         attributes.Has("Required") || attributes.Has("BindRequired")
@@ -316,7 +320,20 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
 
     private static bool IsNullable(ITypeSymbol type) =>
         type.NullableAnnotation == NullableAnnotation.Annotated
+        || IsOblivious(type)
         || type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+
+    /// <summary>
+    /// The schema of a parameter or body. An oblivious reference type there is optional (<see cref="IsRequired"/>), but
+    /// not nullable: whether a value may be left out is the parameter's or body's <c>required</c>, so a project turning
+    /// nullable on reports one finding per parameter, not two.
+    /// </summary>
+    private SchemaContract RootSchema(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes) =>
+        IsOblivious(type) ? schemas.Map(type, attributes) with { Nullable = false } : schemas.Map(type, attributes);
+
+    /// <summary>A reference type declared where nullable annotations are disabled: it may hold null.</summary>
+    private static bool IsOblivious(ITypeSymbol type) =>
+        type.IsReferenceType && type.NullableAnnotation == NullableAnnotation.None;
 
     private SchemaContract FormSchema(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes) => type.Name switch
     {
@@ -800,7 +817,7 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
         foreach (var call in endpoint.Conventions)
         {
             var model = compilation.GetSemanticModel(call.SyntaxTree);
-            var value = call.ArgumentList.Arguments.FirstOrDefault()?.Expression is { } expression ? VersionText(expression, model) : null;
+            var value = VersionText(call.ArgumentList.Arguments, model);
             switch (MethodName(call))
             {
                 case "HasApiVersion" when value is not null:
@@ -824,20 +841,32 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
             .ToList();
     }
 
+    /// <summary>
+    /// The version given to a convention call: <c>HasApiVersion(1, 0)</c> (major and minor, as the
+    /// <c>ApiVersion(int, int)</c> overload), or a single argument such as <c>HasApiVersion(1.0)</c> or
+    /// <c>HasApiVersion(new ApiVersion(1, 0))</c>.
+    /// </summary>
+    private static string? VersionText(SeparatedSyntaxList<ArgumentSyntax> arguments, SemanticModel model) =>
+        arguments.Count switch
+        {
+            0 => null,
+            1 => VersionText(arguments[0].Expression, model),
+            _ => VersionParts(arguments, model),
+        };
+
     /// <summary><c>"1.0"</c>, <c>1.0</c>, <c>new ApiVersion(1, 0)</c> or <c>new ApiVersion(2)</c> as text.</summary>
     private static string? VersionText(ExpressionSyntax expression, SemanticModel model)
     {
         if (expression is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: { Count: > 0 } arguments })
         {
-            var parts = arguments.Select(a => model.GetConstantValue(a.Expression)).ToList();
-            if (parts.All(p => p is { HasValue: true, Value: int or double }))
+            if (arguments.Count == 1 && model.GetConstantValue(arguments[0].Expression) is { HasValue: true, Value: string text })
             {
-                return parts.Count == 1 && parts[0].Value is double number
-                    ? Number(number)
-                    : string.Join(".", parts.Select(p => Convert.ToString(p.Value, System.Globalization.CultureInfo.InvariantCulture)));
+                return text;
             }
 
-            return parts[0] is { HasValue: true, Value: string text } ? text : null;
+            return arguments.Count == 1 && model.GetConstantValue(arguments[0].Expression) is { HasValue: true, Value: double number }
+                ? Number(number)
+                : VersionParts(arguments, model);
         }
 
         return model.GetConstantValue(expression) switch
@@ -848,7 +877,30 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
             _ => null,
         };
 
-        static string Number(double value) => value.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private static string Number(double value) => value.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
+
+    /// <summary>
+    /// <c>(1, 0)</c> as <c>1.0</c> and <c>(1, 0, "beta")</c> as <c>1.0-beta</c>, the way <c>ApiVersion</c> formats
+    /// them. Null when a part is not a constant.
+    /// </summary>
+    private static string? VersionParts(SeparatedSyntaxList<ArgumentSyntax> arguments, SemanticModel model)
+    {
+        var parts = arguments.Select(a => model.GetConstantValue(a.Expression)).ToList();
+        var numbers = parts.TakeWhile(p => p is { HasValue: true, Value: int }).Select(p => (int)p.Value!).ToList();
+        if (numbers.Count == 0 || numbers.Count > 2)
+        {
+            return null;
+        }
+
+        var text = string.Join(".", numbers.Select(n => n.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        return parts.Skip(numbers.Count).ToList() switch
+        {
+            [] => text,
+            [{ HasValue: true, Value: string status }] => $"{text}-{status}",
+            _ => null,
+        };
     }
 
     /// <summary>The <c>VVV</c> format the API explorer substitutes in URLs: <c>1.0</c> is <c>1</c>, <c>1.1</c> stays.</summary>

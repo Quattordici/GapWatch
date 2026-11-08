@@ -76,7 +76,7 @@ A complete before/after sample lives in `tests/GapWatch.Tests/Fixtures`, with th
 | Format | For | Notes |
 |---|---|---|
 | `console` | Build logs | Grouped by severity. |
-| `markdown` | Pull request comments | Starts with `<!-- gapwatch-report -->` so a pipeline can update one comment. |
+| `markdown` | Pull request comments | Starts with `<!-- gapwatch-report -->` so a pipeline can update one comment. A shared change lists each operation once and folds the list past 5 operations. The report stays under 60,000 characters (a GitHub comment holds 65,536): rows beyond that are left out with a note, and the counts still include them. |
 | `sarif` | Code-scanning dashboards | SARIF 2.1.0, validated against the OASIS schema in development. Levels: Breaking `error`, Warning `warning`, Info `note`. Suppressed findings are kept with `suppressions[].kind = "external"` and their justification. `partialFingerprints` hash rule, operation and location, so a finding keeps its identity when its wording changes. |
 | `junit` | CI test tabs | One test case per finding, grouped by operation. Findings at or above `--fail-on` are failures, so the XML agrees with the exit code; suppressed findings are skipped with their justification. |
 
@@ -156,9 +156,9 @@ GapWatch recognizes `Asp.Versioning` setups and reports a version as one decisio
 | GW062 ApiVersionAdded | Info | GW003 |
 | GW063 ApiVersionDeprecated | Info | GW002 |
 
-A version is removed only when no operation in the head has it any more; removing one endpoint of a version that stays is still GW001. It counts as deprecated when every operation of the version is marked `deprecated`, so GW061 means it was retired on the planned path. One finding is still reported per operation, so counts and exit codes stay per operation, and reports group them under the version.
+A version is removed only when no operation in the head has it any more; removing one endpoint of a version that stays is still GW001. An `api-version` parameter that gains an enum of only the versions its operation already serves (Asp.Versioning 10 started emitting one) declares what was already true, so it is neither GW023 nor GW062. A version counts as deprecated when every operation of the version is marked `deprecated`, so GW061 means it was retired on the planned path. One finding is still reported per operation, so counts and exit codes stay per operation, and reports group them under the version.
 
-**Folder mode.** `gapwatch compare base/ head/` reads every `.json`, `.yaml` and `.yml` file in each folder (not recursive) and pairs the documents by `info.version`, or by file name when an `info.version` is missing or repeated. Operations are shown with their version, for example `GET /pets [2.0]`, and a document on one side only is a removed or added version. The detection patterns can be changed or turned off in `gapwatch.json` (see [Configuration](docs/configuration.md#api-versions)).
+**Folder mode.** `gapwatch compare base/ head/` reads every `.json`, `.yaml` and `.yml` file in each folder (not recursive) that is an OpenAPI document, skipping other files such as `appsettings.json` with a note on stderr, and pairs the documents by `info.version`, or by file name when an `info.version` is missing or repeated. Operations are shown with their version, for example `GET /pets [2.0]`, and a document on one side only is a removed or added version. The detection patterns can be changed or turned off in `gapwatch.json` (see [Configuration](docs/configuration.md#api-versions)).
 
 ### How direction changes the verdict
 

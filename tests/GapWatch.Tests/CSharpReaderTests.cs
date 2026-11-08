@@ -383,6 +383,28 @@ public sealed class CSharpReaderTests
         contract.Operations.Single(o => o.Path == "/v0.9/pets").Deprecated.ShouldBeTrue();
     }
 
+    [Test]
+    public void Minimal_api_versions_given_as_major_and_minor_read_like_the_openapi_document()
+    {
+        // Asp.Versioning's HasApiVersion(int, int) overload, as in eShop: the OpenAPI document says 1.0, so must we,
+        // or suppressions and baselines written against one input do not match the other.
+        var contract = Read("""
+            public static class Endpoints
+            {
+                public static void Map(WebApplication app)
+                {
+                    var api = app.NewVersionedApi("Pets");
+                    var v1 = api.MapGroup("api").HasApiVersion(1, 0);
+                    var v2 = api.MapGroup("api").HasApiVersion(2, 1, "beta");
+                    v1.MapGet("/pets", () => Results.Ok());
+                    v2.MapGet("/pets", () => Results.Ok()).HasDeprecatedApiVersion(3, 0);
+                }
+            }
+            """);
+
+        Operations(contract).ShouldBe("GET /api/pets [1.0], GET /api/pets [2.1-beta], GET /api/pets [3.0]");
+    }
+
     private static string VersionDiff(string before, string after)
     {
         var (was, now) = (Read(before), Read(after));

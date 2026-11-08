@@ -28,8 +28,11 @@ internal static class SourceCompilation
             .ToList();
     }
 
-    /// <summary>Compiles <c>(path, text)</c> pairs. The path is used verbatim in locations.</summary>
-    public static CSharpCompilation Compile(IEnumerable<(string Path, string Text)> sources)
+    /// <summary>
+    /// Compiles <c>(path, text)</c> pairs. The path is used verbatim in locations. <paramref name="nullable"/> is the
+    /// project's <c>&lt;Nullable&gt;</c> context; <c>#nullable</c> directives in the files apply on top of it.
+    /// </summary>
+    public static CSharpCompilation Compile(IEnumerable<(string Path, string Text)> sources, bool nullable = true)
     {
         ArgumentNullException.ThrowIfNull(sources);
 
@@ -46,7 +49,7 @@ internal static class SourceCompilation
             "GapWatch.Source",
             trees,
             RuntimeReferences.Value,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullable ? NullableContextOptions.Enable : NullableContextOptions.Disable));
     }
 
     /// <summary>The path of the generated tree that holds the implicit usings; it declares nothing to scan.</summary>

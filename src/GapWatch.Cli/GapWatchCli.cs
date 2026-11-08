@@ -138,8 +138,14 @@ public static class GapWatchCli
 
         options.Values.TryGetValue("--base-ref", out var baseRef);
         ISourceTree baseTree = baseRef is null ? WorkingTree.Instance : new GitRevision(baseRef);
-        var (baseContract, head, fallbackHeadDocument) = ContractInputs.Load(
+        var inputs = ContractInputs.Load(
             baseTree, basePath, WorkingTree.Instance, headPath, input == "csharp" ? InputKind.CSharp : InputKind.OpenApi);
+        var (baseContract, head, fallbackHeadDocument) = inputs;
+        foreach (var skipped in inputs.Skipped)
+        {
+            error.WriteLine($"Skipped {skipped}: not an OpenAPI document (no 'openapi' property).");
+        }
+
         var baseLabel = baseRef is null ? basePath : $"{baseRef}:{basePath}";
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)

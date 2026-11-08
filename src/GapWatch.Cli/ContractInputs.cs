@@ -21,7 +21,14 @@ public enum InputKind
 /// <param name="Base">What consumers rely on today.</param>
 /// <param name="Head">The proposed change.</param>
 /// <param name="FallbackHeadDocument">In folder mode, the first head document; null otherwise.</param>
-public sealed record ComparisonInputs(ApiContract Base, ApiContract Head, string? FallbackHeadDocument);
+public sealed record ComparisonInputs(ApiContract Base, ApiContract Head, string? FallbackHeadDocument)
+{
+    /// <summary>
+    /// In folder mode, the JSON and YAML files that are not OpenAPI documents (such as <c>appsettings.json</c> next to a
+    /// generated document) and were left out, by label.
+    /// </summary>
+    public IReadOnlyList<string> Skipped { get; init; } = [];
+}
 
 /// <summary>The input is not of a shape <c>compare</c> accepts, such as a file on one side and a folder on the other.</summary>
 public sealed class InputException(string message) : Exception(message);
@@ -61,9 +68,10 @@ public static class ContractInputs
             return new ComparisonInputs(Document(baseTree.Read(basePath)), Document(headTree.Read(headPath)), null);
         }
 
-        var headDocuments = Documents(headTree, headPath);
-        var (combinedBase, combinedHead) = VersionedDocuments.Combine(Documents(baseTree, basePath), headDocuments);
-        return new ComparisonInputs(combinedBase, combinedHead, headDocuments[0].Path);
+        var skipped = new List<string>();
+        var headDocuments = Documents(headTree, headPath, skipped);
+        var (combinedBase, combinedHead) = VersionedDocuments.Combine(Documents(baseTree, basePath, skipped), headDocuments);
+        return new ComparisonInputs(combinedBase, combinedHead, headDocuments[0].Path) { Skipped = skipped };
     }
 
     private static ComparisonInputs LoadSources(ISourceTree baseTree, string basePath, ISourceTree headTree, string headPath)
@@ -79,16 +87,30 @@ public static class ContractInputs
     private static EntryKind Existing(ISourceTree tree, string path) =>
         tree.Kind(path) is not EntryKind.Missing and var kind ? kind : throw new ContractReadException($"File not found: {path}");
 
+    /// <summary>Reads one document; a read error names the file, so a folder with several says which one failed.</summary>
     private static ApiContract Document(SourceFile file)
     {
         using var content = new MemoryStream(file.Content, writable: false);
-        return ContractLoader.Load(file.Name, content);
+        try
+        {
+            return ContractLoader.Load(file.Name, content);
+        }
+        catch (ContractReadException ex) when (!ex.Message.Contains(file.Label, StringComparison.Ordinal))
+        {
+            throw new ContractReadException($"{file.Label}: {ex.Message}", ex);
+        }
     }
 
-    /// <summary>Every OpenAPI document directly in the folder (<c>.json</c>, <c>.yaml</c>, <c>.yml</c>), ordered by file name.</summary>
-    private static IReadOnlyList<NamedContract> Documents(ISourceTree tree, string folder)
+    /// <summary>
+    /// Every OpenAPI document directly in the folder (<c>.json</c>, <c>.yaml</c>, <c>.yml</c>), ordered by file name.
+    /// Files that are not OpenAPI documents at all are added to <paramref name="skipped"/> instead.
+    /// </summary>
+    private static IReadOnlyList<NamedContract> Documents(ISourceTree tree, string folder, List<string> skipped)
     {
-        var documents = tree.ReadFolder(folder, recursive: false, ContractLoader.IsSupported)
+        var files = tree.ReadFolder(folder, recursive: false, ContractLoader.IsSupported);
+        skipped.AddRange(files.Where(f => !ContractLoader.MayBeOpenApi(f.Name, f.Content)).Select(f => f.Label));
+        var documents = files
+            .Where(f => ContractLoader.MayBeOpenApi(f.Name, f.Content))
             .Select(file => new NamedContract(file.Label, Document(file)))
             .ToList();
 
@@ -98,9 +120,29 @@ public static class ContractInputs
     }
 
     private static ApiContract Sources(ISourceTree tree, string folder) =>
-        CSharpContractReader.FromSources(tree.ReadFolder(folder, recursive: true, CSharpContractReader.IsSourceFile)
-            .Select(file => (file.Label, Decode(file.Content)))
-            .ToList());
+        CSharpContractReader.FromSources(
+            tree.ReadFolder(folder, recursive: true, CSharpContractReader.IsSourceFile)
+                .Select(file => (file.Label, Decode(file.Content)))
+                .ToList(),
+            ProjectSettings.FindNullable(folder, directory => ProjectFiles(tree, directory)));
+
+    /// <summary>The <c>.csproj</c> and <c>Directory.Build.props</c> files directly in a folder of the tree, if it has it.</summary>
+    private static IReadOnlyList<(string Name, string Text)> ProjectFiles(ISourceTree tree, string directory)
+    {
+        try
+        {
+            return tree.Kind(directory) == EntryKind.Folder
+                ? tree.ReadFolder(directory, recursive: false, ProjectSettings.IsProjectFile)
+                    .Select(file => (file.Name, Decode(file.Content)))
+                    .ToList()
+                : [];
+        }
+        catch (ContractReadException)
+        {
+            // Outside the repository, or missing at the revision: nothing to read there.
+            return [];
+        }
+    }
 
     /// <summary>Decodes source text the way <see cref="File.ReadAllText(string)"/> does: UTF-8 unless a byte order mark says otherwise.</summary>
     private static string Decode(byte[] content)

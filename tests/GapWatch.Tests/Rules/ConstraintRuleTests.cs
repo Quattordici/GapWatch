@@ -69,6 +69,20 @@ public sealed class ConstraintRuleTests
     }
 
     [Test]
+    public void A_bound_for_another_type_constrains_nothing()
+    {
+        // JSON Schema applies minLength only to strings, minimum only to numbers, maxItems only to arrays.
+        const string Integer = """{ "type": "integer" }""";
+        const string IntegerWithLength = """{ "type": "integer", "maxLength": 5, "maxItems": 2 }""";
+        var stringWithMinimum = String(""", "minimum": 1""");
+
+        RequestDiff(Integer, IntegerWithLength).ShouldBe(string.Empty);
+        ResponseDiff(IntegerWithLength, Integer).ShouldBe(string.Empty);
+        RequestDiff(String(), stringWithMinimum).ShouldBe(string.Empty);
+        RequestDiff("{ }", """{ "maxLength": 5 }""").ShouldBe("GW032");
+    }
+
+    [Test]
     public void An_inclusive_bound_that_becomes_exclusive_is_tighter()
     {
         var inclusive = Number(""", "minimum": 0""");
@@ -113,6 +127,21 @@ public sealed class ConstraintRuleTests
         result.RuleIds().ShouldBe("GW034");
         result.Findings[0].Message.ShouldContain("'^[A-Z]{3}$'");
         ResponseDiff(free, constrained).ShouldBe(string.Empty);
+    }
+
+    [Test]
+    public void A_pattern_on_a_value_that_was_never_a_string_is_not_GW034()
+    {
+        // .NET 10's generator: 'int' becomes [integer, string] with a numeric pattern, and a plain 'type: integer'
+        // parameter gets the same pattern. The pattern constrains only strings, which the base never accepted.
+        const string Integer = """{ "type": "integer", "format": "int32" }""";
+        const string IntegerWithPattern = """{ "type": "integer", "format": "int32", "pattern": "^-?(?:0|[1-9]\\d*)$" }""";
+        const string IntegerOrString = """{ "type": ["integer", "string"], "format": "int32", "pattern": "^-?(?:0|[1-9]\\d*)$" }""";
+
+        RequestDiff(Integer, IntegerWithPattern).ShouldBe(string.Empty);
+        RequestDiff(Integer, IntegerOrString).ShouldBe(string.Empty);
+        ResponseDiff(Integer, IntegerOrString).ShouldBe("GW020");
+        RequestDiff("{ }", """{ "pattern": "^a" }""").ShouldBe("GW034");
     }
 
     [Test]

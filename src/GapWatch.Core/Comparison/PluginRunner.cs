@@ -64,9 +64,9 @@ internal static class PluginRunner
                 $"Plugin '{plugin}' reported rule '{reported.RuleId}' on operation '{pair.Operation}', which it does not declare in its Rules.");
         }
 
-        // Positions come from the contract, never from the plugin: the head operation, as for a built-in operation
-        // finding, and none for a removed operation, which exists in no head document.
-        var position = pair.Head?.Position;
+        // Positions come from the contract, never from the plugin: the element the location names in the head
+        // operation, as for a built-in finding there, and none for a removed operation, which is in no head document.
+        var position = pair.Head is { } head ? LocationPositions.Find(head, reported.At) : null;
         return new Finding(rule, pair.Operation, reported.At, reported.Message)
         {
             Position = position,
