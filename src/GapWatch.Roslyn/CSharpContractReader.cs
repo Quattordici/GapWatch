@@ -23,7 +23,7 @@ public static class CSharpContractReader
     public static ApiContract FromSources(IEnumerable<(string Path, string Text)> sources)
     {
         var compilation = SourceCompilation.Compile(sources);
-        var reader = new OperationReader(compilation, new SchemaMapper());
+        var reader = new OperationReader(compilation, new SchemaMapper(compilation, JsonConventions.Find(compilation)));
 
         var operations = compilation.SyntaxTrees
             .SelectMany(tree => EndpointScanner.Scan(tree, compilation))

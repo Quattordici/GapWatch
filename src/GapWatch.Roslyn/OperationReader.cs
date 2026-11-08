@@ -83,42 +83,36 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
         RequestBodyContract? body = null;
         var form = new List<(string Name, SchemaContract Schema, bool Required, SourcePosition Position)>();
 
-        foreach (var syntax in endpoint.Parameters)
+        foreach (var candidate in endpoint.Parameters.SelectMany(Candidates))
         {
-            var model = compilation.GetSemanticModel(syntax.SyntaxTree);
-            if (model.GetDeclaredSymbol(syntax) is not { } symbol)
-            {
-                continue;
-            }
-
-            var attributes = Attributes(syntax.AttributeLists).ToList();
-            var source = SourceOf(symbol, attributes, endpoint, route);
+            var (symbolName, type, attributes, model, location, hasDefault, isRequired) = candidate;
+            var source = SourceOf(symbolName, type, attributes, endpoint, route);
             var explicitName = attributes
                 .Where(a => Name(a) is "FromQuery" or "FromRoute" or "FromHeader" or "FromForm")
                 .Select(a => StringProperty(a, "Name", model))
                 .FirstOrDefault(n => n is not null);
-            var name = explicitName ?? symbol.Name;
-            var position = Position(syntax.Identifier.GetLocation());
-            var required = IsRequired(symbol, attributes);
+            var name = explicitName ?? symbolName;
+            var position = Position(location);
+            var required = isRequired || IsRequired(type, attributes, hasDefault);
 
             switch (source)
             {
                 case Source.Path:
                     var declared = route.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)).Name ?? name;
                     bound.Add(declared);
-                    parameters.Add(new ParameterContract(declared, "path", true, schemas.Map(symbol.Type)) { Position = position });
+                    parameters.Add(new ParameterContract(declared, "path", true, schemas.Map(type, attributes)) { Position = position });
                     break;
                 case Source.Query:
-                    parameters.Add(new ParameterContract(name, "query", required, schemas.Map(symbol.Type)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "query", required, schemas.Map(type, attributes)) { Position = position });
                     break;
                 case Source.Header:
-                    parameters.Add(new ParameterContract(name, "header", required, schemas.Map(symbol.Type)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "header", required, schemas.Map(type, attributes)) { Position = position });
                     break;
                 case Source.Form:
-                    form.Add((name, FormSchema(symbol.Type), required, position));
+                    form.Add((name, FormSchema(type, attributes), required, position));
                     break;
                 case Source.Body:
-                    var schema = schemas.Map(symbol.Type);
+                    var schema = schemas.Map(type, attributes);
                     body = new RequestBodyContract(required, ContentTypes(Consumes(endpoint, model), [Json]).ToDictionary(t => t, _ => schema))
                     {
                         Position = position,
@@ -164,8 +158,82 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
         return (parameters, body);
     }
 
+    /// <summary>One value the handler binds: a parameter, or a property of an <c>[AsParameters]</c> type.</summary>
+    private sealed record Candidate(
+        string Name,
+        ITypeSymbol Type,
+        IReadOnlyList<AttributeSyntax> Attributes,
+        SemanticModel Model,
+        Location Location,
+        bool HasDefault,
+        bool IsRequired = false);
+
+    /// <summary>
+    /// The parameter itself, or for <c>[AsParameters]</c> the public settable properties of its type (and the
+    /// parameters of a positional record), each bound as if it were a parameter.
+    /// </summary>
+    private IEnumerable<Candidate> Candidates(ParameterSyntax syntax)
+    {
+        var model = compilation.GetSemanticModel(syntax.SyntaxTree);
+        if (model.GetDeclaredSymbol(syntax) is not { } symbol)
+        {
+            yield break;
+        }
+
+        var attributes = Attributes(syntax.AttributeLists).ToList();
+        if (!attributes.Has("AsParameters"))
+        {
+            yield return new Candidate(symbol.Name, symbol.Type, attributes, model, syntax.Identifier.GetLocation(), symbol.HasExplicitDefaultValue);
+            yield break;
+        }
+
+        if (symbol.Type is not INamedTypeSymbol type || !SchemaMapper.IsDeclaredInSource(type))
+        {
+            yield break;
+        }
+
+        var constructor = type.InstanceConstructors.FirstOrDefault(c => c.DeclaredAccessibility == Accessibility.Public && c.Parameters.Length > 0);
+        if (constructor is not null)
+        {
+            foreach (var parameter in constructor.Parameters)
+            {
+                if (parameter.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is ParameterSyntax declaration)
+                {
+                    yield return new Candidate(
+                        parameter.Name,
+                        parameter.Type,
+                        Attributes(declaration.AttributeLists).ToList(),
+                        compilation.GetSemanticModel(declaration.SyntaxTree),
+                        declaration.Identifier.GetLocation(),
+                        parameter.HasExplicitDefaultValue);
+                }
+            }
+
+            yield break;
+        }
+
+        foreach (var property in type.GetMembers().OfType<IPropertySymbol>())
+        {
+            if (property.IsStatic || property.DeclaredAccessibility != Accessibility.Public || property.SetMethod is null
+                || property.DeclaringSyntaxReferences.FirstOrDefault()?.GetSyntax() is not PropertyDeclarationSyntax declaration)
+            {
+                continue;
+            }
+
+            yield return new Candidate(
+                property.Name,
+                property.Type,
+                Attributes(declaration.AttributeLists).ToList(),
+                compilation.GetSemanticModel(declaration.SyntaxTree),
+                declaration.Identifier.GetLocation(),
+                HasDefault: declaration.Initializer is not null,
+                IsRequired: property.IsRequired);
+        }
+    }
+
     private static Source SourceOf(
-        IParameterSymbol symbol,
+        string name,
+        ITypeSymbol type,
         IReadOnlyList<AttributeSyntax> attributes,
         EndpointDeclaration endpoint,
         IReadOnlyList<(string Name, string? Constraint)> route)
@@ -183,13 +251,12 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
             }
         }
 
-        var type = symbol.Type;
         if (type.TypeKind == TypeKind.Error)
         {
             return type.Name is "IFormFile" or "IFormFileCollection" ? Source.Form : Source.None;
         }
 
-        if (route.Any(r => string.Equals(r.Name, symbol.Name, StringComparison.OrdinalIgnoreCase)))
+        if (route.Any(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)))
         {
             return Source.Path;
         }
@@ -216,15 +283,15 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
     /// <c>[Required]</c> or <c>[BindRequired]</c> makes a value required; otherwise it is required unless it is nullable
     /// (<c>int?</c>, <c>string?</c>) or has a default value, as ASP.NET Core binding treats it.
     /// </summary>
-    private static bool IsRequired(IParameterSymbol symbol, IReadOnlyList<AttributeSyntax> attributes) =>
+    private static bool IsRequired(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes, bool hasDefault) =>
         attributes.Has("Required") || attributes.Has("BindRequired")
-        || !(symbol.HasExplicitDefaultValue || IsNullable(symbol.Type));
+        || !(hasDefault || IsNullable(type));
 
     private static bool IsNullable(ITypeSymbol type) =>
         type.NullableAnnotation == NullableAnnotation.Annotated
         || type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
 
-    private SchemaContract FormSchema(ITypeSymbol type) => type.Name switch
+    private SchemaContract FormSchema(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes) => type.Name switch
     {
         "IFormFile" when type.TypeKind == TypeKind.Error => new SchemaContract { Types = ["string"], Format = "binary" },
         "IFormFileCollection" when type.TypeKind == TypeKind.Error => new SchemaContract
@@ -232,7 +299,7 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
             Types = ["array"],
             Items = new SchemaContract { Types = ["string"], Format = "binary" },
         },
-        _ => schemas.Map(type),
+        _ => schemas.Map(type, attributes),
     };
 
     /// <summary>Route constraints that say what type a parameter is; everything else is a string.</summary>
