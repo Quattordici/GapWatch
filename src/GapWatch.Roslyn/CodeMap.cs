@@ -1,8 +1,6 @@
 using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
 using Microsoft.CodeAnalysis;
-using Microsoft.CodeAnalysis.CSharp;
-using Microsoft.CodeAnalysis.CSharp.Syntax;
 
 namespace GapWatch.Roslyn;
 
@@ -18,22 +16,25 @@ namespace GapWatch.Roslyn;
 /// </remarks>
 public sealed class CodeMap
 {
-    private readonly Dictionary<string, List<Endpoint>> _endpoints;
+    private readonly Dictionary<string, List<OperationContract>> _operations;
     private readonly TypeIndex _types;
 
-    private CodeMap(IReadOnlyList<Endpoint> endpoints, TypeIndex types)
+    private CodeMap(ApiContract contract, TypeIndex types)
     {
-        Endpoints = endpoints;
+        Contract = contract;
         _types = types;
-        _endpoints = endpoints
-            .GroupBy(e => RouteTemplate.Key(e.Method, e.Route), StringComparer.Ordinal)
+        _operations = contract.Operations
+            .GroupBy(o => RouteTemplate.Key(o.Method, o.Path), StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.ToList(), StringComparer.Ordinal);
     }
 
-    /// <summary>Every endpoint found in the code, in source order.</summary>
-    public IReadOnlyList<Endpoint> Endpoints { get; }
+    /// <summary>
+    /// The contract read from the code by <see cref="CSharpContractReader"/>: the same binding rules as
+    /// <c>--input csharp</c>, so an endpoint or parameter the reader understands is one the map can place.
+    /// </summary>
+    public ApiContract Contract { get; }
 
-    /// <summary>Reads every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c> and <c>obj</c>.</summary>
+    /// <summary>Reads every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c>, <c>obj</c>, <c>.git</c> and <c>node_modules</c>.</summary>
     /// <exception cref="DirectoryNotFoundException">The directory does not exist.</exception>
     public static CodeMap Load(string directory) => FromSources(SourceCompilation.ReadDirectory(directory));
 
@@ -42,19 +43,13 @@ public sealed class CodeMap
     {
         var compilation = SourceCompilation.Compile(sources);
 
-        var endpoints = new List<Endpoint>();
         var types = new TypeIndex();
         foreach (var tree in compilation.SyntaxTrees)
         {
-            endpoints.AddRange(EndpointScanner.Scan(tree, compilation).Select(e => new Endpoint(
-                e.Method,
-                e.Route,
-                ToCodeLocation(e.Location),
-                BoundParameters(e.Parameters))));
             types.Add(tree, compilation.GetSemanticModel(tree));
         }
 
-        return new CodeMap(endpoints, types);
+        return new CodeMap(CSharpContractReader.Read(compilation), types);
     }
 
     /// <summary>Returns a copy of <paramref name="result"/> in which every finding the map can place has a <see cref="Finding.Code"/>.</summary>
@@ -83,88 +78,38 @@ public sealed class CodeMap
             return schemaLocation;
         }
 
-        if (finding.Rule == RuleCatalog.OperationRemoved || FindEndpoint(finding.Operation) is not { } endpoint)
+        if (finding.Rule == RuleCatalog.OperationRemoved || FindOperations(finding.Operation) is not { } operations)
         {
             return null;
         }
 
-        if (ParameterName(finding.Location) is { } parameter
-            && endpoint.Parameters.TryGetValue(parameter, out var parameterLocation))
+        if (finding.At is FindingLocation.Parameter parameter
+            && Unique(operations
+                .SelectMany(o => o.Parameters)
+                .Where(p => string.Equals(p.Name, parameter.Name, StringComparison.OrdinalIgnoreCase))
+                .Select(p => p.Position)) is { } parameterLocation)
         {
             return parameterLocation;
         }
 
-        return endpoint.Location;
+        return Unique(operations.Select(o => o.Position));
     }
 
-    private Endpoint? FindEndpoint(string operation)
+    /// <summary>
+    /// The operations read from the code that a finding's operation matches, ignoring case, parameter names and the
+    /// API version (one endpoint mapped to several versions is still one place in the code). Null when there are none.
+    /// </summary>
+    private List<OperationContract>? FindOperations(string operation) =>
+        OperationIdentity.Parse(operation) is { } identity
+        && _operations.TryGetValue(RouteTemplate.Key(identity.Method, identity.Path), out var matches)
+            ? matches
+            : null;
+
+    /// <summary>The one code location the positions share, or null when there is none or more than one.</summary>
+    private static CodeLocation? Unique(IEnumerable<SourcePosition?> positions)
     {
-        var separator = operation.IndexOf(' ', StringComparison.Ordinal);
-        if (separator <= 0)
-        {
-            return null;
-        }
-
-        // In multi-document mode the operation ends with its API version, e.g. "GET /pets [2.0]".
-        var path = operation[(separator + 1)..];
-        if (path.EndsWith(']') && path.LastIndexOf(" [", StringComparison.Ordinal) is var version and > 0)
-        {
-            path = path[..version];
-        }
-
-        var key = RouteTemplate.Key(operation[..separator], path);
-        return _endpoints.TryGetValue(key, out var matches) && matches.Count == 1 ? matches[0] : null;
-    }
-
-    /// <summary>The parameter name in a location such as <c>parameter 'status' (query)</c> or <c>parameter 'id' (path): $</c>.</summary>
-    private static string? ParameterName(string location)
-    {
-        const string Prefix = "parameter '";
-        if (!location.StartsWith(Prefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var end = location.IndexOf('\'', Prefix.Length);
-        return end > Prefix.Length ? location[Prefix.Length..end] : null;
-    }
-
-    /// <summary>Attributes that say where a value comes from; their <c>Name</c> overrides the parameter name.</summary>
-    private static readonly HashSet<string> BindingAttributes = new(StringComparer.Ordinal)
-    {
-        "FromQuery", "FromRoute", "FromHeader", "FromForm",
-    };
-
-    /// <summary>Parameters that never appear as OpenAPI parameters.</summary>
-    private static readonly HashSet<string> NonParameterAttributes = new(StringComparer.Ordinal)
-    {
-        "FromBody", "FromServices", "FromKeyedServices", "AsParameters",
-    };
-
-    private static Dictionary<string, CodeLocation> BoundParameters(IEnumerable<ParameterSyntax> parameters)
-    {
-        var result = new Dictionary<string, CodeLocation>(StringComparer.OrdinalIgnoreCase);
-        foreach (var parameter in parameters)
-        {
-            var attributes = SyntaxHelpers.Attributes(parameter.AttributeLists).ToList();
-            if (attributes.Any(a => NonParameterAttributes.Contains(SyntaxHelpers.Name(a)))
-                || parameter.Type?.ToString() is "CancellationToken" or "HttpContext" or "HttpRequest" or "HttpResponse")
-            {
-                continue;
-            }
-
-            var name = attributes
-                .Where(a => BindingAttributes.Contains(SyntaxHelpers.Name(a)))
-                .Select(a => SyntaxHelpers.Property(a, "Name") is LiteralExpressionSyntax { RawKind: (int)SyntaxKind.StringLiteralExpression } literal
-                    ? literal.Token.ValueText
-                    : null)
-                .FirstOrDefault(n => n is not null)
-                ?? parameter.Identifier.ValueText;
-
-            result.TryAdd(name, ToCodeLocation(parameter.Identifier.GetLocation()));
-        }
-
-        return result;
+        var distinct = positions.OfType<SourcePosition>().Distinct().Take(2).ToList();
+        return distinct is [{ File: { } file } only] ? new CodeLocation(file, only.Line, only.Column) : null;
     }
 
     internal static CodeLocation ToCodeLocation(Location location)
@@ -173,14 +118,3 @@ public sealed class CodeMap
         return new CodeLocation(span.Path, span.StartLinePosition.Line + 1, span.StartLinePosition.Character + 1);
     }
 }
-
-/// <summary>An HTTP endpoint found in code.</summary>
-/// <param name="Method">Upper-case HTTP method.</param>
-/// <param name="Route">Route template as declared, with constraints, e.g. <c>/api/pets/{id:int}</c>.</param>
-/// <param name="Location">The action method name or the <c>Map*</c> call.</param>
-/// <param name="Parameters">Bound parameter names (as the client sends them, case-insensitive) and where they are declared.</param>
-public sealed record Endpoint(
-    string Method,
-    string Route,
-    CodeLocation Location,
-    IReadOnlyDictionary<string, CodeLocation> Parameters);

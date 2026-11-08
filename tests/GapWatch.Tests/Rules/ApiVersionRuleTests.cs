@@ -1,6 +1,8 @@
+using GapWatch.Core;
 using GapWatch.Core.Comparison;
 using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
+using GapWatch.Core.Policy;
 using Shouldly;
 
 namespace GapWatch.Tests.Rules;
@@ -14,7 +16,7 @@ public sealed class ApiVersionRuleTests
     {
         var baseline = TestSpec.Parse(before);
         var head = TestSpec.Parse(after);
-        return ApiVersionAnalyzer.Apply(baseline, head, new ContractComparer().Compare(baseline, head), options ?? VersioningOptions.Default);
+        return Check(baseline, head, options ?? VersioningOptions.Default);
     }
 
     /// <summary>A document with <c>GET</c> on each path, all with the same operation body.</summary>
@@ -237,8 +239,11 @@ public sealed class ApiVersionRuleTests
     private static ComparisonResult AnalyzeDocuments(IReadOnlyList<NamedContract> before, IReadOnlyList<NamedContract> after)
     {
         var (baseline, head) = VersionedDocuments.Combine(before, after);
-        return ApiVersionAnalyzer.Apply(baseline, head, new ContractComparer().Compare(baseline, head), VersioningOptions.Disabled);
+        return Check(baseline, head, VersioningOptions.Disabled);
     }
+
+    private static ComparisonResult Check(ApiContract baseline, ApiContract head, VersioningOptions versioning) =>
+        CompatibilityCheck.Run(baseline, head, GapWatchConfiguration.Default with { Versioning = versioning }).Result;
 
     [Test]
     public void A_version_document_missing_from_the_head_is_GW060_for_its_operations()

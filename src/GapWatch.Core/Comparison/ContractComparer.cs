@@ -23,7 +23,7 @@ public sealed class ContractComparer
                 findings.Add(new Finding(
                     RuleCatalog.OperationRemoved,
                     was.Display,
-                    "operation",
+                    FindingLocation.Operation.Instance,
                     $"Operation '{was.Display}' was removed."));
                 continue;
             }
@@ -38,7 +38,7 @@ public sealed class ContractComparer
                 findings.Add(new Finding(
                     RuleCatalog.OperationAdded,
                     now.Display,
-                    "operation",
+                    FindingLocation.Operation.Instance,
                     $"Operation '{now.Display}' was added.") { Position = now.Position, Document = now.Position?.File ?? now.Document });
             }
         }
@@ -59,7 +59,7 @@ public sealed class ContractComparer
 
     private static void CompareOperation(OperationContract was, OperationContract now, List<Finding> findings)
     {
-        void Add(RuleDescriptor rule, string location, string message, SourcePosition? position, SchemaOrigin? origin = null)
+        void Add(RuleDescriptor rule, FindingLocation location, string message, SourcePosition? position, SchemaOrigin? origin = null)
         {
             var at = position ?? now.Position;
             findings.Add(new Finding(rule, now.Display, location, message)
@@ -72,7 +72,7 @@ public sealed class ContractComparer
 
         if (!was.Deprecated && now.Deprecated)
         {
-            Add(RuleCatalog.OperationDeprecated, "operation", $"Operation '{now.Display}' was marked deprecated.", null);
+            Add(RuleCatalog.OperationDeprecated, FindingLocation.Operation.Instance, $"Operation '{now.Display}' was marked deprecated.", null);
         }
 
         if (!string.IsNullOrEmpty(was.OperationId)
@@ -80,7 +80,7 @@ public sealed class ContractComparer
         {
             Add(
                 RuleCatalog.OperationIdChanged,
-                "operation",
+                FindingLocation.Operation.Instance,
                 now.OperationId is null
                     ? $"operationId '{was.OperationId}' was removed."
                     : $"operationId changed from '{was.OperationId}' to '{now.OperationId}'.",
@@ -101,13 +101,12 @@ public sealed class ContractComparer
 
         foreach (var (key, previous) in before)
         {
-            var location = $"parameter '{previous.Name}' ({previous.Location})";
 
             if (!after.TryGetValue(key, out var current))
             {
                 add(
                     RuleCatalog.ParameterRemoved,
-                    location,
+                    new FindingLocation.Parameter(previous.Name, previous.Location),
                     $"Parameter '{previous.Name}' ({previous.Location}) was removed.",
                     null);
                 continue;
@@ -117,7 +116,7 @@ public sealed class ContractComparer
             {
                 add(
                     RuleCatalog.ParameterBecameRequired,
-                    $"parameter '{current.Name}' ({current.Location})",
+                    new FindingLocation.Parameter(current.Name, current.Location),
                     $"Parameter '{current.Name}' ({current.Location}) became required.",
                     current.Position);
             }
@@ -130,7 +129,7 @@ public sealed class ContractComparer
                 current.Position,
                 (rule, schemaPath, message, position, origin) => add(
                     rule,
-                    FormatLocation($"parameter '{current.Name}' ({current.Location})", schemaPath),
+                    new FindingLocation.Parameter(current.Name, current.Location, schemaPath),
                     message,
                     position,
                     origin));
@@ -142,7 +141,7 @@ public sealed class ContractComparer
             {
                 add(
                     RuleCatalog.RequiredParameterAdded,
-                    $"parameter '{current.Name}' ({current.Location})",
+                    new FindingLocation.Parameter(current.Name, current.Location),
                     $"Required parameter '{current.Name}' ({current.Location}) was added.",
                     current.Position);
             }
@@ -190,7 +189,7 @@ public sealed class ContractComparer
         {
             if (now!.Required)
             {
-                add(RuleCatalog.RequiredRequestBodyAdded, "request body", "A required request body was added.", now.Position);
+                add(RuleCatalog.RequiredRequestBodyAdded, FindingLocation.RequestBody.Instance, "A required request body was added.", now.Position);
             }
 
             return;
@@ -198,13 +197,13 @@ public sealed class ContractComparer
 
         if (now is null)
         {
-            add(RuleCatalog.RequestBodyRemoved, "request body", "The request body was removed.", null);
+            add(RuleCatalog.RequestBodyRemoved, FindingLocation.RequestBody.Instance, "The request body was removed.", null);
             return;
         }
 
         if (!was.Required && now.Required)
         {
-            add(RuleCatalog.RequestBodyBecameRequired, "request body", "The request body became required.", now.Position);
+            add(RuleCatalog.RequestBodyBecameRequired, FindingLocation.RequestBody.Instance, "The request body became required.", now.Position);
         }
 
         foreach (var (mediaType, previous) in was.Content.OrderBy(c => c.Key, StringComparer.Ordinal))
@@ -213,7 +212,7 @@ public sealed class ContractComparer
             {
                 add(
                     RuleCatalog.MediaTypeRemoved,
-                    $"request body ({mediaType})",
+                    new FindingLocation.RequestContent(mediaType),
                     $"Request media type '{mediaType}' is no longer accepted.",
                     now.Position);
                 continue;
@@ -227,7 +226,7 @@ public sealed class ContractComparer
                 now.Position,
                 (rule, schemaPath, message, position, origin) => add(
                     rule,
-                    FormatLocation($"request body ({mediaType})", schemaPath),
+                    new FindingLocation.RequestContent(mediaType, schemaPath),
                     message,
                     position,
                     origin));
@@ -250,13 +249,13 @@ public sealed class ContractComparer
                 {
                     add(
                         RuleCatalog.SuccessResponseRemoved,
-                        $"response {code}",
+                        new FindingLocation.Response(code),
                         $"Success response {code} was removed.",
                         null);
                 }
                 else
                 {
-                    add(RuleCatalog.ResponseRemoved, $"response {code}", $"Response {code} was removed.", null);
+                    add(RuleCatalog.ResponseRemoved, new FindingLocation.Response(code), $"Response {code} was removed.", null);
                 }
 
                 continue;
@@ -268,7 +267,7 @@ public sealed class ContractComparer
                 {
                     add(
                         RuleCatalog.MediaTypeRemoved,
-                        $"response {code}",
+                        new FindingLocation.ResponseMediaType(code, mediaType),
                         $"Response {code} no longer produces media type '{mediaType}'.",
                         current.Position);
                     continue;
@@ -282,7 +281,7 @@ public sealed class ContractComparer
                     current.Position,
                     (rule, schemaPath, message, position, origin) => add(
                         rule,
-                        FormatLocation($"response {code} {mediaType}", schemaPath),
+                        new FindingLocation.ResponseContent(code, mediaType, schemaPath),
                         message,
                         position,
                         origin));
@@ -305,7 +304,7 @@ public sealed class ContractComparer
         {
             add(
                 RuleCatalog.SecurityAdded,
-                "security",
+                FindingLocation.Security.Instance,
                 $"The operation now requires authentication ({string.Join(" OR ", now.Security)}).",
                 null);
             return;
@@ -321,7 +320,7 @@ public sealed class ContractComparer
         {
             add(
                 RuleCatalog.SecurityRequirementsReplaced,
-                "security",
+                FindingLocation.Security.Instance,
                 $"Previously accepted security ({string.Join(" OR ", was.Security)}) was replaced by ({string.Join(" OR ", now.Security)}).",
                 null);
             return;
@@ -331,7 +330,7 @@ public sealed class ContractComparer
         {
             add(
                 RuleCatalog.SecurityRequirementRemoved,
-                "security",
+                FindingLocation.Security.Instance,
                 $"Security alternative '{alternative}' is no longer accepted.",
                 null);
         }
@@ -341,8 +340,5 @@ public sealed class ContractComparer
 
     /// <summary>Adds a finding; a null <paramref name="position"/> falls back to the head operation's position.</summary>
     private delegate void AddFinding(
-        RuleDescriptor rule, string location, string message, SourcePosition? position, SchemaOrigin? origin = null);
-
-    private static string FormatLocation(string prefix, string schemaPath) =>
-        schemaPath == SchemaComparer.Root ? prefix : $"{prefix}: {schemaPath}";
+        RuleDescriptor rule, FindingLocation location, string message, SourcePosition? position, SchemaOrigin? origin = null);
 }

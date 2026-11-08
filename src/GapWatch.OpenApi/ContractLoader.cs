@@ -1,5 +1,4 @@
 using GapWatch.Core;
-using GapWatch.Core.Comparison;
 using GapWatch.Core.Model;
 
 namespace GapWatch.OpenApi;
@@ -51,34 +50,6 @@ public static class ContractLoader
 
     /// <summary>True when <paramref name="name"/> has an extension one of the readers supports.</summary>
     public static bool IsSupported(string name) => Readers.Any(r => r.CanRead(name));
-
-    /// <summary>
-    /// Loads every OpenAPI document directly in <paramref name="directory"/> (<c>.json</c>, <c>.yaml</c>, <c>.yml</c>; not
-    /// recursive), ordered by file name. Paths are reported as <c>directory/file</c> with forward slashes.
-    /// </summary>
-    /// <exception cref="ContractReadException">The folder is missing or empty, or a document is invalid.</exception>
-    public static IReadOnlyList<NamedContract> LoadFolder(string directory)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(directory);
-
-        if (!Directory.Exists(directory))
-        {
-            throw new ContractReadException($"Folder not found: {directory}");
-        }
-
-        var documents = Directory
-            .EnumerateFiles(directory)
-            .Where(path => Readers.Any(r => r.CanRead(path)))
-            .Order(StringComparer.Ordinal)
-            .Select(path => new NamedContract(
-                $"{directory.TrimEnd('/', '\\')}/{Path.GetFileName(path)}".Replace('\\', '/'),
-                Load(path)))
-            .ToList();
-
-        return documents.Count > 0
-            ? documents
-            : throw new ContractReadException($"No OpenAPI documents (.json, .yaml, .yml) in folder: {directory}");
-    }
 
     private static string UnsupportedMessage(string path) =>
         $"Unsupported file type '{Path.GetExtension(path).ToLowerInvariant()}' for '{path}'. Supported: .json, .yaml and .yml (OpenAPI 3.x).";

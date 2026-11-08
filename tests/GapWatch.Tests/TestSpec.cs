@@ -1,5 +1,7 @@
 using System.Text;
+using GapWatch.Core;
 using GapWatch.Core.Comparison;
+using GapWatch.Core.Policy;
 using GapWatch.Core.Findings;
 using GapWatch.Core.Model;
 using GapWatch.OpenApi;
@@ -42,7 +44,15 @@ internal static class TestSpec
     public static string Operation(string method, string path, string operationBody = "\"responses\": { \"204\": { \"description\": \"d\" } }", string topLevel = "") =>
         Document($$"""{ "{{path}}": { "{{method}}": { {{operationBody}} } } }""", topLevel: topLevel);
 
+    /// <summary>The whole check with the default configuration: what <c>gapwatch compare</c> reports.</summary>
     public static ComparisonResult Diff(string baseline, string head) =>
+        CompatibilityCheck.Run(Parse(baseline), Parse(head), GapWatchConfiguration.Default).Result;
+
+    /// <summary>
+    /// The contract comparison alone, before the version analyzer rewrites findings about API versions. Only for tests
+    /// of a rule the analyzer would otherwise replace.
+    /// </summary>
+    public static ComparisonResult CompareOnly(string baseline, string head) =>
         new ContractComparer().Compare(Parse(baseline), Parse(head));
 
     /// <summary>Sorted, comma-joined rule ids of all findings (e.g. <c>GW001,GW003</c>); an order-independent comparison target.</summary>
