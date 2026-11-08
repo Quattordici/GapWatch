@@ -67,6 +67,33 @@ public sealed class ContractInputsTests
     }
 
     [Test]
+    public void Folders_skip_json_and_yaml_files_that_are_not_openapi_documents()
+    {
+        // The usual ASP.NET Core project folder: a build-time document next to appsettings.json (with a byte order
+        // mark and a comment, as Visual Studio writes it) and a YAML file of something else.
+        const string AppSettings = "\uFEFF{\n  // logging\n  \"Logging\": { \"LogLevel\": { \"Default\": \"Information\" } },\n}";
+        var tree = new MemoryTree(
+            "",
+            ("api/Api.json", Version("1.0", "/pets")),
+            ("api/appsettings.json", AppSettings),
+            ("api/docker.yml", "services:\n  api:\n    image: x\n"));
+
+        var inputs = Load(tree, tree);
+
+        inputs.Head.Operations.ShouldHaveSingleItem().Display.ShouldBe("GET /pets [1.0]");
+        string.Join(", ", inputs.Skipped).ShouldBe("api/appsettings.json, api/docker.yml, api/appsettings.json, api/docker.yml");
+    }
+
+    [Test]
+    public void A_document_that_cannot_be_read_is_named_in_the_error()
+    {
+        var broken = new MemoryTree("rev:", ("api/v1.json", Version("1.0", "/pets")), ("api/v2.json", """{ "openapi": "3.0.1", "paths": """));
+        var good = new MemoryTree("", ("api/v1.json", Version("1.0", "/pets")));
+
+        Should.Throw<ContractReadException>(() => Load(broken, good)).Message.ShouldStartWith("rev:api/v2.json: ");
+    }
+
+    [Test]
     public void A_file_on_one_side_and_a_folder_on_the_other_is_an_input_error()
     {
         var file = new MemoryTree("", ("api", TestSpec.Operation("get", "/pets")));

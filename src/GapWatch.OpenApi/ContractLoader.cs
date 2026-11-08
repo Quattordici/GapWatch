@@ -4,7 +4,7 @@ using GapWatch.Core.Model;
 namespace GapWatch.OpenApi;
 
 /// <summary>Picks the right <see cref="IContractReader"/> for a file and loads it.</summary>
-public static class ContractLoader
+public static partial class ContractLoader
 {
     private static readonly IContractReader[] Readers = [new OpenApiJsonReader(), new OpenApiYamlReader()];
 
@@ -47,6 +47,53 @@ public static class ContractLoader
                      ?? throw new ContractReadException(UnsupportedMessage(name));
         return reader.Read(content);
     }
+
+    /// <summary>
+    /// False only for a file that is certainly not an OpenAPI or Swagger document: JSON (comments and trailing commas
+    /// allowed, as in <c>appsettings.json</c>) or YAML whose root is a mapping without an <c>openapi</c> or
+    /// <c>swagger</c> key. Anything that cannot be parsed counts as a document, so its reader reports the error.
+    /// </summary>
+    public static bool MayBeOpenApi(string name, byte[] content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(content);
+
+        if (name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                // Visual Studio saves appsettings.json with a byte order mark, which the JSON parser does not skip.
+                var json = content.AsMemory();
+                if (json.Span.StartsWith((ReadOnlySpan<byte>)[0xEF, 0xBB, 0xBF]))
+                {
+                    json = json[3..];
+                }
+
+                using var document = System.Text.Json.JsonDocument.Parse(json, new System.Text.Json.JsonDocumentOptions
+                {
+                    CommentHandling = System.Text.Json.JsonCommentHandling.Skip,
+                    AllowTrailingCommas = true,
+                });
+                return document.RootElement.ValueKind != System.Text.Json.JsonValueKind.Object
+                       || document.RootElement.TryGetProperty("openapi", out _)
+                       || document.RootElement.TryGetProperty("swagger", out _);
+            }
+            catch (System.Text.Json.JsonException)
+            {
+                return true;
+            }
+        }
+
+        // YAML: look for a top-level key without parsing the whole document.
+        var text = System.Text.Encoding.UTF8.GetString(content);
+        return TopLevelYamlKey().IsMatch(text) || !AnyTopLevelYamlKey().IsMatch(text);
+    }
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[""']?(openapi|swagger)[""']?\s*:", System.Text.RegularExpressions.RegexOptions.Multiline)]
+    private static partial System.Text.RegularExpressions.Regex TopLevelYamlKey();
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"^[""']?[A-Za-z_][\w.-]*[""']?\s*:", System.Text.RegularExpressions.RegexOptions.Multiline)]
+    private static partial System.Text.RegularExpressions.Regex AnyTopLevelYamlKey();
 
     /// <summary>True when <paramref name="name"/> has an extension one of the readers supports.</summary>
     public static bool IsSupported(string name) => Readers.Any(r => r.CanRead(name));
