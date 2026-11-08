@@ -24,7 +24,8 @@ Both sides are read by the same reader. If the reader misses a detail, it misses
 | A parameter without an attribute | A name in the route is a path parameter. A simple type (primitives, enums, `Guid`, dates, and collections of them) is a query parameter. A type declared in the project is the body on an `[ApiController]` action, or on a minimal API whose method allows a body (not GET, HEAD, DELETE or OPTIONS). Anything else, such as `CancellationToken`, services and unresolved types, is not part of the contract. |
 | `[AsParameters]` | Each property, or positional record parameter, bound as its own parameter. |
 | `IFormFile`, `IFormFileCollection`, `[FromForm]` | A `multipart/form-data` body. |
-| Required | A path parameter is always required. Otherwise a value is required unless it is nullable (`int?`, `string?`) or has a default value. `[Required]` and `[BindRequired]` force it. |
+| Required | A path parameter is always required. Otherwise a value is required unless it is nullable (`int?`, `string?`, or a reference type where nullable annotations are disabled) or has a default value. `[Required]` and `[BindRequired]` force it. An oblivious body on a controller action stays required, as MVC only makes a body optional from a `?`. |
+| `HasApiVersion(1, 0)`, `HasApiVersion(1.0)`, `HasApiVersion(new ApiVersion(1, 0))`, `HasApiVersion(2, 1, "beta")` | Version `1.0` (and `2.1-beta`), as the OpenAPI document names it. |
 | Return type: `T`, `Task<T>`, `ValueTask<T>`, `ActionResult<T>`, `Results<Ok<T>, NotFound>`, `TypedResults.Ok(x)` returned by a lambda | Responses. `void`, `Task`, `IActionResult` and `IResult` give `200` without content, as ASP.NET Core returns. A `string` is `text/plain`, and everything else is `application/json`. |
 | `[ProducesResponseType]` (`typeof`, generic, `StatusCodes.Status404NotFound`), `[Produces]`, `[ProducesDefaultResponseType]`, `[Consumes]` | Declared responses and media types. On a controller, declared success responses replace the one the return type implies. A declared success response without a type takes the return type, as `ActionResult<T>` does. |
 | `.Produces<T>(status)`, `.Produces(status)`, `.ProducesProblem(status)`, `.ProducesValidationProblem()`, `.Accepts<T>(...)` | Minimal API responses and body. Problem responses are `application/problem+json` with the `ProblemDetails` schema. |
@@ -43,10 +44,16 @@ Both sides are read by the same reader. If the reader misses a detail, it misses
 | Classes, records and structs declared in the project | Object schemas named after the type, so shared-schema grouping works. Generic types are named the way `Microsoft.AspNetCore.OpenApi` names them (`Page<Node>` is `PageOfNode`). Reference cycles are cut. |
 | Properties | Public instance properties with a public getter, inherited ones included. The name comes from `[JsonPropertyName]` or the naming policy: camelCase by default, or `PropertyNamingPolicy = null` / `JsonNamingPolicy.SnakeCaseLower` (and the other built-in policies) when set in the JSON options. `[JsonIgnore]` skips a property unless its `Condition` keeps it. |
 | Required properties | The `required` modifier, `[Required]`, `[JsonRequired]`, or a matching parameter of the only public constructor (so every positional record parameter is required). |
-| Nullable | `T?` for both reference and value types, read from nullable annotations. |
+| Nullable | `T?` for both reference and value types, read from nullable annotations. Where annotations are disabled, a reference type may be null: nullable inside a schema, optional as a parameter or body (see [Nullable context](#nullable-context)). |
 | Enums | Integers, as System.Text.Json writes them. They are strings when a `JsonStringEnumConverter` (or `JsonStringEnumConverter<T>`) is on the enum or the property, or is registered in the JSON options, where the naming policy passed to it also applies. `[JsonStringEnumMemberName]` is respected. |
 | `[Range]` (with `MinimumIsExclusive`/`MaximumIsExclusive`), `[MinLength]`, `[MaxLength]`, `[Length]`, `[StringLength]`, `[RegularExpression]` | Bounds and patterns (GW032 to GW035), on properties and on parameters. On arrays, the length attributes are item counts. |
 | `[JsonPolymorphic(TypeDiscriminatorPropertyName = ...)]` with `[JsonDerivedType(typeof(Cat), "cat")]` | Variants, each carrying the discriminator property, and a discriminator with its mapping (`$type` by default) for GW030, GW031 and GW037. |
+
+### Nullable context
+
+Whether `string Name` may be null depends on the project's `<Nullable>` setting, so the reader looks for it the way MSBuild would, without running MSBuild: the nearest `.csproj` in the source folder or above it, and the nearest `Directory.Build.props` (the one MSBuild imports by default), stopping at the folder that holds `.git`. With `--base-ref`, both files are read from that revision too. The project file wins over the props file. `enable` and `annotations` enable annotations; `disable` and `warnings` do not, and neither does a project file without `<Nullable>` (the SDK default). With no project file found, annotations count as enabled. `#nullable` directives in a file apply on top. Conditions on the property are not evaluated.
+
+So a project that turns `<Nullable>enable</Nullable>` on reports what its consumers feel: request values that stop accepting null (GW022), parameters and bodies that become required (GW011, GW041), and nothing for responses, which only became more precise.
 
 ## Limits
 

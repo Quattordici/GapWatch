@@ -31,13 +31,32 @@ public static class CSharpContractReader
 
     private static readonly string[] ExcludedFolders = ["bin", "obj", ".git", "node_modules"];
 
-    /// <summary>Reads every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c>, <c>obj</c>, <c>.git</c> and <c>node_modules</c> (see <see cref="IsSourceFile"/>).</summary>
+    /// <summary>
+    /// Reads every <c>.cs</c> file under <paramref name="directory"/>, skipping <c>bin</c>, <c>obj</c>, <c>.git</c> and
+    /// <c>node_modules</c> (see <see cref="IsSourceFile"/>), with the project's <c>&lt;Nullable&gt;</c> setting
+    /// (see <see cref="ProjectSettings.FindNullable"/>).
+    /// </summary>
     /// <exception cref="DirectoryNotFoundException">The directory does not exist.</exception>
-    public static ApiContract Load(string directory) => FromSources(SourceCompilation.ReadDirectory(directory));
+    public static ApiContract Load(string directory)
+    {
+        var sources = SourceCompilation.ReadDirectory(directory);
+        return FromSources(sources, ProjectSettings.FindNullable(directory, ProjectFilesOnDisk));
+    }
 
-    /// <summary>Reads in-memory sources: <c>(path, text)</c> pairs. The path is used verbatim in positions.</summary>
-    public static ApiContract FromSources(IEnumerable<(string Path, string Text)> sources) =>
-        Read(SourceCompilation.Compile(sources));
+    /// <summary>
+    /// Reads in-memory sources: <c>(path, text)</c> pairs. The path is used verbatim in positions.
+    /// <paramref name="nullable"/> is the project's <c>&lt;Nullable&gt;</c> context (see <see cref="ProjectSettings"/>).
+    /// </summary>
+    public static ApiContract FromSources(IEnumerable<(string Path, string Text)> sources, bool nullable = true) =>
+        Read(SourceCompilation.Compile(sources, nullable));
+
+    private static IReadOnlyList<(string Name, string Text)> ProjectFilesOnDisk(string directory) =>
+        Directory.Exists(directory)
+            ? Directory.EnumerateFiles(directory)
+                .Where(path => ProjectSettings.IsProjectFile(Path.GetFileName(path)))
+                .Select(path => (Path.GetFileName(path), File.ReadAllText(path)))
+                .ToList()
+            : [];
 
     /// <summary>Reads the contract from an existing compilation, so <see cref="CodeMap"/> can share it.</summary>
     internal static ApiContract Read(Microsoft.CodeAnalysis.Compilation compilation)

@@ -98,9 +98,29 @@ public static class ContractInputs
     }
 
     private static ApiContract Sources(ISourceTree tree, string folder) =>
-        CSharpContractReader.FromSources(tree.ReadFolder(folder, recursive: true, CSharpContractReader.IsSourceFile)
-            .Select(file => (file.Label, Decode(file.Content)))
-            .ToList());
+        CSharpContractReader.FromSources(
+            tree.ReadFolder(folder, recursive: true, CSharpContractReader.IsSourceFile)
+                .Select(file => (file.Label, Decode(file.Content)))
+                .ToList(),
+            ProjectSettings.FindNullable(folder, directory => ProjectFiles(tree, directory)));
+
+    /// <summary>The <c>.csproj</c> and <c>Directory.Build.props</c> files directly in a folder of the tree, if it has it.</summary>
+    private static IReadOnlyList<(string Name, string Text)> ProjectFiles(ISourceTree tree, string directory)
+    {
+        try
+        {
+            return tree.Kind(directory) == EntryKind.Folder
+                ? tree.ReadFolder(directory, recursive: false, ProjectSettings.IsProjectFile)
+                    .Select(file => (file.Name, Decode(file.Content)))
+                    .ToList()
+                : [];
+        }
+        catch (ContractReadException)
+        {
+            // Outside the repository, or missing at the revision: nothing to read there.
+            return [];
+        }
+    }
 
     /// <summary>Decodes source text the way <see cref="File.ReadAllText(string)"/> does: UTF-8 unless a byte order mark says otherwise.</summary>
     private static string Decode(byte[] content)

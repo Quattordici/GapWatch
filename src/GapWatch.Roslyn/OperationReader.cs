@@ -127,20 +127,23 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
                 case Source.Path:
                     var declared = route.FirstOrDefault(r => string.Equals(r.Name, name, StringComparison.OrdinalIgnoreCase)).Name ?? name;
                     bound.Add(declared);
-                    parameters.Add(new ParameterContract(declared, "path", true, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(declared, "path", true, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Query:
-                    parameters.Add(new ParameterContract(name, "query", required, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "query", required, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Header:
-                    parameters.Add(new ParameterContract(name, "header", required, schemas.Map(type, attributes)) { Position = position });
+                    parameters.Add(new ParameterContract(name, "header", required, RootSchema(type, attributes)) { Position = position });
                     break;
                 case Source.Form:
                     form.Add((name, FormSchema(type, attributes), required, position));
                     break;
                 case Source.Body:
-                    var schema = schemas.Map(type, attributes);
-                    body = new RequestBodyContract(required, ContentTypes(Consumes(endpoint, model), [Json]).ToDictionary(t => t, _ => schema))
+                    var schema = RootSchema(type, attributes);
+
+                    // MVC infers an optional body only from a nullable annotation; an oblivious one stays required.
+                    var bodyRequired = required || (endpoint.IsController && IsOblivious(type));
+                    body = new RequestBodyContract(bodyRequired, ContentTypes(Consumes(endpoint, model), [Json]).ToDictionary(t => t, _ => schema))
                     {
                         Position = position,
                     };
@@ -308,7 +311,8 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
 
     /// <summary>
     /// <c>[Required]</c> or <c>[BindRequired]</c> makes a value required; otherwise it is required unless it is nullable
-    /// (<c>int?</c>, <c>string?</c>) or has a default value, as ASP.NET Core binding treats it.
+    /// (<c>int?</c>, <c>string?</c>, or a reference type in a nullable-oblivious context) or has a default value, as
+    /// ASP.NET Core binding treats it.
     /// </summary>
     private static bool IsRequired(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes, bool hasDefault) =>
         attributes.Has("Required") || attributes.Has("BindRequired")
@@ -316,7 +320,20 @@ internal sealed partial class OperationReader(Compilation compilation, SchemaMap
 
     private static bool IsNullable(ITypeSymbol type) =>
         type.NullableAnnotation == NullableAnnotation.Annotated
+        || IsOblivious(type)
         || type is INamedTypeSymbol { OriginalDefinition.SpecialType: SpecialType.System_Nullable_T };
+
+    /// <summary>
+    /// The schema of a parameter or body. An oblivious reference type there is optional (<see cref="IsRequired"/>), but
+    /// not nullable: whether a value may be left out is the parameter's or body's <c>required</c>, so a project turning
+    /// nullable on reports one finding per parameter, not two.
+    /// </summary>
+    private SchemaContract RootSchema(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes) =>
+        IsOblivious(type) ? schemas.Map(type, attributes) with { Nullable = false } : schemas.Map(type, attributes);
+
+    /// <summary>A reference type declared where nullable annotations are disabled: it may hold null.</summary>
+    private static bool IsOblivious(ITypeSymbol type) =>
+        type.IsReferenceType && type.NullableAnnotation == NullableAnnotation.None;
 
     private SchemaContract FormSchema(ITypeSymbol type, IReadOnlyList<AttributeSyntax> attributes) => type.Name switch
     {
