@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A sample GapWatch plugin. Outside this repository, reference the package instead:
+      <PackageReference Include="GapWatch.Sdk" Version="1.2.0" ExcludeAssets="runtime" />
+    ExcludeAssets="runtime" leaves GapWatch.Sdk.dll out of the output: GapWatch always uses its own copy.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>Acme.GapWatch.Rules</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\GapWatch.Sdk\GapWatch.Sdk.csproj" Private="false" />
+  </ItemGroup>
+
+</Project>

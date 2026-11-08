@@ -2,7 +2,7 @@
 
 GapWatch finds **breaking changes between two versions of an HTTP API contract** before they reach your consumers. It compares a baseline OpenAPI document with a proposed one, or two versions of ASP.NET Core code, and explains every consumer-visible difference, with a rule id, a precise location and a severity.
 
-> **Status: v1.1.** Rule ids, exit codes, options, configuration and report formats are stable under semantic versioning; see the [compatibility policy](docs/compatibility.md). See also [Limitations](#limitations).
+> **Status: v1.2.** Rule ids, exit codes, options, configuration and report formats are stable under semantic versioning; see the [compatibility policy](docs/compatibility.md). See also [Limitations](#limitations).
 
 ## Why another API diff tool
 
@@ -31,8 +31,8 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>] [--input openapi|csharp]
-gapwatch rules [--format console|markdown]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>] [--input openapi|csharp] [--plugin <file>]...
+gapwatch rules [--format console|markdown] [--config <file>] [--plugin <file>]...
 gapwatch --version | --help
 ```
 
@@ -45,6 +45,7 @@ gapwatch --version | --help
 - `--baseline` accepts the findings listed in a baseline file, and `--write-baseline` writes one from the current run. Baselines are for adopting GapWatch against a base that is far behind, such as the last release (see [Configuration](docs/configuration.md#baselines)).
 - `--base-ref` reads `<base>` from a git revision instead of the working tree, e.g. `gapwatch compare api/openapi.json api/openapi.json --base-ref origin/main`. It works for files and folders, and only reads from git.
 - `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
+- `--plugin` loads [custom rules](docs/plugins.md) from an assembly, in addition to the `plugins` in `gapwatch.json`. It can be repeated. Plugins run with full trust, so load only assemblies you would also run in your build.
 - `--input csharp` reads the contract from ASP.NET Core source instead of OpenAPI documents: `<base>` and `<head>` are source folders, e.g. `gapwatch compare src/Api src/Api --input csharp --base-ref origin/main`. See [Reading the contract from C#](docs/csharp-input.md).
 
 ### Exit codes
@@ -53,7 +54,7 @@ gapwatch --version | --help
 |---|---|
 | 0 | No finding at or above the `--fail-on` threshold (default threshold: `breaking`, or `failOn` in `gapwatch.json`). |
 | 1 | At least one finding at or above the threshold. |
-| 2 | Usage error or unreadable input. |
+| 2 | Usage error or unreadable input, including a plugin that cannot be loaded or fails. |
 
 Exit codes are part of the public contract, so build pipelines can rely on them.
 
@@ -142,6 +143,8 @@ Every suppression needs a justification. Suppressed findings leave the exit code
 
 38 rules across operations, parameters, schemas (including value constraints), bodies, responses, security and API versions. See [docs/rules.md](docs/rules.md), or run `gapwatch rules`. Rule ids are stable: they never change meaning and are never reused.
 
+Teams can add rules of their own as [plugins](docs/plugins.md): a .NET assembly that implements `IRulePlugin` from `GapWatch.Sdk`. Plugin ids have their own prefix, such as `ACME001` (`GW` is reserved), and their findings go through configuration, baselines and every report format like built-in ones.
+
 ### API versions
 
 GapWatch recognizes `Asp.Versioning` setups and reports a version as one decision instead of one finding per endpoint. A version is read from the document it is in (folder mode), a path segment such as `/v1/pets`, the enum of an `api-version` query or header parameter, or the `v` media type parameter (`application/json;v=2.0`). `v1`, `1` and `1.0` are the same version.
@@ -179,16 +182,19 @@ A version is removed only when no operation in the head has it any more; removin
 
 ```
 src/
-  GapWatch.Core        Contract model, rule catalog, comparison engine, policy (overrides, suppressions). No I/O, no dependencies.
+  GapWatch.Sdk         What plugins compile against: the contract model, rule descriptors, finding locations, IRulePlugin and SchemaWalker. Published; no I/O, no dependencies.
+  GapWatch.Core        Rule catalog and rule set, comparison engine, plugin runner, policy (overrides, suppressions). No I/O, no dependencies but the SDK.
   GapWatch.OpenApi     OpenAPI 3.x readers behind IContractReader: JSON (System.Text.Json) and YAML (YamlDotNet, converted to JSON first).
   GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
   GapWatch.Roslyn      Reads the contract from C# (--input csharp) and maps findings to C# code (controllers, minimal APIs, DTOs) with Microsoft.CodeAnalysis.CSharp; source files only.
-  GapWatch.Cli         The `gapwatch` dotnet tool, the gapwatch.json reader, and ContractInputs, which reads both sides from the working tree or a git revision. GapWatchCli.Run is console-free and unit tested.
+  GapWatch.Cli         The `gapwatch` dotnet tool, the gapwatch.json reader, the plugin loader (one AssemblyLoadContext per plugin), and ContractInputs, which reads both sides from the working tree or a git revision. GapWatchCli.Run is console-free and unit tested.
+samples/
+  Acme.GapWatch.Rules  A sample plugin with two rules (docs/plugins.md).
 tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```
 
-Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That includes C# source: `CSharpContractReader` builds the same model from controllers, minimal APIs and DTOs, so it added no rules. `CompatibilityCheck.Run` in Core runs the check in its one correct order: compare, turn per-operation findings about API versions into version findings (GW060 to GW063), apply the configured policy, then the baseline. Code mapping with `--source` happens after that, on the findings, so it never influences a verdict.
+Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That includes C# source: `CSharpContractReader` builds the same model from controllers, minimal APIs and DTOs, so it added no rules. `CompatibilityCheck.Run` in Core runs the check in its one correct order: compare (built-in and plugin rules), turn per-operation findings about API versions into version findings (GW060 to GW063), apply the configured policy, then the baseline. Code mapping with `--source` happens after that, on the findings, so it never influences a verdict.
 
 ## Running the tests
 
@@ -202,6 +208,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
 - **Common value constraints only.** Length, item-count and numeric bounds, `pattern`, `additionalProperties: false` and `discriminator` are compared (GW032 to GW037). `multipleOf`, `uniqueItems`, `minProperties`, `maxProperties` and `const` are not. Whether one `pattern` accepts a subset of another is not decided, so a changed pattern is a Warning to review.
 - **API versions from the spec, or from code with `--input csharp`.** `[ApiVersion]` and `[MapToApiVersion]` are read when the contract comes from C#; `--source` uses them only to match versioned routes, not to detect version changes. A removed version exists in no head document, so its SARIF result points at the first head document, line 1, as a removed operation does.
+- **Plugins run in process, with full trust.** There is no sandbox, and plugins are loaded only from paths you name, never from NuGet. See [plugins](docs/plugins.md#trust).
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
 - **C# input sees what the code says statically.** Runtime-built routes, filters, source generators and validation libraries are not seen; see the [limits](docs/csharp-input.md#limits).
@@ -216,8 +223,8 @@ To regenerate the golden reports after an intentional output change, run the tes
 | v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules and folder mode (done) |
 | v0.5 | Value-constraint rules GW032 to GW037 (done), `failOn` and suppression expiry in `gapwatch.json` (done), `--base-ref` (done) |
 | v1.0 | Stable rule ids and a [compatibility policy](docs/compatibility.md) for the tool itself (done) |
-| v1.1 | [Contract read from C# source](docs/csharp-input.md) with `--input csharp`, no new rule ids (this release) |
-| v1.x | Custom rule plugins |
+| v1.1 | [Contract read from C# source](docs/csharp-input.md) with `--input csharp`, no new rule ids (done) |
+| v1.2 | [Custom rule plugins](docs/plugins.md) and the `GapWatch.Sdk` package (this release) |
 
 ## License
 

@@ -7,6 +7,9 @@
     <Project Path="src/GapWatch.Roslyn/GapWatch.Roslyn.csproj" />
     <Project Path="src/GapWatch.Sdk/GapWatch.Sdk.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Acme.GapWatch.Rules/Acme.GapWatch.Rules.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/GapWatch.Tests/GapWatch.Tests.csproj" />
   </Folder>

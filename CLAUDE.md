@@ -7,7 +7,7 @@ GapWatch detects breaking changes between two versions of an HTTP API contract. 
 - C#, .NET 10, nullable enabled, warnings as errors, central package management (`Directory.Packages.props`).
 - Tests: TUnit (`TUnit.Core` + `TUnit.Engine`, on Microsoft Testing Platform), `TUnit.Mocks` for test doubles, Shouldly for assertions. Do not add the `TUnit` meta-package or `TUnit.Assertions`; Shouldly is the only assertion library. TUnit runs tests in parallel by default, so tests must not share mutable state (use `[NotInParallel]` only when unavoidable). Keep assertions simple (`ShouldBe`, `ShouldContain`, `ShouldBeEmpty`, `ShouldHaveSingleItem`, `Should.Throw`); compare collections as joined strings.
 - Prefer small, pure, well-tested core libraries. `GapWatch.Core` has no I/O and no package dependencies; keep it that way.
-- `GapWatch.Sdk` holds what plugins compile against: the contract model, `RuleDescriptor`, `FindingLocation` and the plugin interfaces. It is a published API with no I/O and no dependencies. From 1.3, add model members only as `init` properties (never positional parameters) and never add members to `IRulePlugin`.
+- `GapWatch.Sdk` holds what plugins compile against: the contract model, `RuleDescriptor`, `FindingLocation` and the plugin interfaces. It is a published API with no I/O and no dependencies. From 1.2, add model members only as `init` properties (never positional parameters) and never add members to `IRulePlugin`. Document SDK changes in `docs/plugins.md`.
 
 ## Architecture rules
 
