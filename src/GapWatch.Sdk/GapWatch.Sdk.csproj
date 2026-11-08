@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>GapWatch.Sdk</RootNamespace>
+
+    <!-- Plugins compile against this package. It has no package dependencies and no I/O, like GapWatch.Core. -->
+    <IsPackable>true</IsPackable>
+    <PackageId>GapWatch.Sdk</PackageId>
+    <Description>The contract model and plugin interfaces for writing custom GapWatch rules.</Description>
+    <PackageTags>openapi;api;breaking-changes;compatibility;gapwatch;plugin</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="GapWatch.Core" />
+  </ItemGroup>
+
+</Project>

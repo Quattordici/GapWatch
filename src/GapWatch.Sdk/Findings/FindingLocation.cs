@@ -7,7 +7,7 @@ namespace GapWatch.Core.Findings;
 /// </summary>
 /// <remarks>
 /// Code that needs to know which parameter, media type or status a finding is about (the version analyzer, the code
-/// map) reads <see cref="Finding.At"/> instead of parsing <see cref="Finding.Location"/>.
+/// map) reads <c>Finding.At</c> instead of parsing <c>Finding.Location</c>.
 /// </remarks>
 public abstract record FindingLocation
 {

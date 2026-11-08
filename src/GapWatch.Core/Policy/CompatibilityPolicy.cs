@@ -75,9 +75,10 @@ public sealed record CompatibilityPolicy(
     /// Returns every problem with this policy (unknown rule ids, blank justifications, contradictory settings).
     /// An empty list means the policy is valid. Messages are complete sentences.
     /// </summary>
-    public IReadOnlyList<string> Validate()
+    /// <param name="rules">The rules ids are checked against; null for the built-in rules alone.</param>
+    public IReadOnlyList<string> Validate(RuleSet? rules = null)
     {
-        var known = RuleCatalog.All.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
+        var known = (rules ?? RuleSet.BuiltIn).All.Select(r => r.Id).ToHashSet(StringComparer.Ordinal);
         var problems = new List<string>();
 
         foreach (var id in SeverityOverrides.Keys.Concat(DisabledRules).Order(StringComparer.Ordinal))
@@ -117,12 +118,14 @@ public sealed record CompatibilityPolicy(
     /// matched by a suppression to <see cref="ComparisonResult.Suppressed"/>. The first matching suppression wins. An
     /// expired suppression matches nothing, so its findings are active again and it is listed as unused.
     /// </summary>
+    /// <param name="result">The findings of the comparison.</param>
+    /// <param name="rules">The rules ids are checked against; null for the built-in rules alone.</param>
     /// <exception cref="ArgumentException">The policy is invalid (see <see cref="Validate"/>).</exception>
-    public ComparisonResult Apply(ComparisonResult result)
+    public ComparisonResult Apply(ComparisonResult result, RuleSet? rules = null)
     {
         ArgumentNullException.ThrowIfNull(result);
 
-        var problems = Validate();
+        var problems = Validate(rules);
         if (problems.Count > 0)
         {
             throw new ArgumentException(string.Join(" ", problems), nameof(result));

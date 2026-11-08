@@ -23,6 +23,9 @@ public sealed record ReportContext(string BaseLabel, string HeadLabel)
     /// document, where <see cref="HeadLabel"/> is that document.
     /// </summary>
     public string? FallbackHeadDocument { get; init; }
+
+    /// <summary>The rules of the run, for formats that list them (SARIF): the built-in rules unless plugins are loaded.</summary>
+    public RuleSet Rules { get; init; } = RuleSet.BuiltIn;
 }
 
 /// <summary>Turns a <see cref="ComparisonResult"/> into text.</summary>
@@ -299,27 +302,37 @@ public sealed class MarkdownReportRenderer : IReportRenderer
 /// <summary>Renders the rule catalog (used by <c>gapwatch rules</c> and to generate documentation).</summary>
 public static class RuleListRenderer
 {
-    /// <summary>Aligned plain-text list.</summary>
-    public static string RenderConsole()
+    /// <summary>Aligned plain-text list. A plugin rule names its plugin after the rule name.</summary>
+    /// <param name="rules">The rules to list; null for the built-in rules alone.</param>
+    public static string RenderConsole(RuleSet? rules = null)
     {
+        rules ??= RuleSet.BuiltIn;
+        var width = rules.All.Max(r => r.Id.Length);
         var text = new StringBuilder();
-        foreach (var rule in RuleCatalog.All)
+        foreach (var rule in rules.All)
         {
-            text.Append(rule.Id).Append("  ")
+            text.Append(rule.Id.PadRight(width)).Append("  ")
                 .Append(rule.DefaultSeverity.ToString().ToUpperInvariant().PadRight(8)).Append("  ")
-                .Append(rule.Name).Append('\n')
-                .Append("       ").Append(rule.Description).Append('\n');
+                .Append(rule.Name);
+            if (rules.PluginOf(rule.Id) is { } plugin)
+            {
+                text.Append(" (plugin ").Append(plugin).Append(')');
+            }
+
+            text.Append('\n')
+                .Append(new string(' ', width + 2)).Append(rule.Description).Append('\n');
         }
 
         return text.ToString();
     }
 
     /// <summary>Markdown table.</summary>
-    public static string RenderMarkdown()
+    /// <param name="rules">The rules to list; null for the built-in rules alone, as in <c>docs/rules.md</c>.</param>
+    public static string RenderMarkdown(RuleSet? rules = null)
     {
         var text = new StringBuilder();
         text.Append("| Rule | Severity | Name | What it detects |\n|---|---|---|---|\n");
-        foreach (var rule in RuleCatalog.All)
+        foreach (var rule in (rules ?? RuleSet.BuiltIn).All)
         {
             text.Append("| ").Append(rule.Id)
                 .Append(" | ").Append(rule.DefaultSeverity)
