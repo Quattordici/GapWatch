@@ -88,8 +88,8 @@ public sealed class CodeMap
             return null;
         }
 
-        if (ParameterName(finding.Location) is { } parameter
-            && endpoint.Parameters.TryGetValue(parameter, out var parameterLocation))
+        if (finding.At is FindingLocation.Parameter parameter
+            && endpoint.Parameters.TryGetValue(parameter.Name, out var parameterLocation))
         {
             return parameterLocation;
         }
@@ -99,34 +99,13 @@ public sealed class CodeMap
 
     private Endpoint? FindEndpoint(string operation)
     {
-        var separator = operation.IndexOf(' ', StringComparison.Ordinal);
-        if (separator <= 0)
+        if (OperationIdentity.Parse(operation) is not { } identity)
         {
             return null;
         }
 
-        // In multi-document mode the operation ends with its API version, e.g. "GET /pets [2.0]".
-        var path = operation[(separator + 1)..];
-        if (path.EndsWith(']') && path.LastIndexOf(" [", StringComparison.Ordinal) is var version and > 0)
-        {
-            path = path[..version];
-        }
-
-        var key = RouteTemplate.Key(operation[..separator], path);
+        var key = RouteTemplate.Key(identity.Method, identity.Path);
         return _endpoints.TryGetValue(key, out var matches) && matches.Count == 1 ? matches[0] : null;
-    }
-
-    /// <summary>The parameter name in a location such as <c>parameter 'status' (query)</c> or <c>parameter 'id' (path): $</c>.</summary>
-    private static string? ParameterName(string location)
-    {
-        const string Prefix = "parameter '";
-        if (!location.StartsWith(Prefix, StringComparison.Ordinal))
-        {
-            return null;
-        }
-
-        var end = location.IndexOf('\'', Prefix.Length);
-        return end > Prefix.Length ? location[Prefix.Length..end] : null;
     }
 
     /// <summary>Attributes that say where a value comes from; their <c>Name</c> overrides the parameter name.</summary>

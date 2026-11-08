@@ -43,16 +43,14 @@ public sealed record OperationContract(
     /// <summary>The document the operation was read from, in multi-document mode. Null for a single document.</summary>
     public string? Document { get; init; }
 
-    /// <summary>Human-readable identity, e.g. <c>GET /pets/{id}</c>, or <c>GET /pets/{id} [2.0]</c> with an <see cref="ApiVersion"/>.</summary>
-    public string Display => ApiVersion is null ? $"{Method} {Path}" : $"{Method} {Path} [{ApiVersion}]";
+    /// <summary>Method, path and API version; owns the operation string and the pairing key.</summary>
+    public OperationIdentity Identity => new(Method, Path, ApiVersion);
 
-    /// <summary>
-    /// Identity used to pair operations across versions. Path parameter names are erased so that
-    /// renaming <c>{id}</c> to <c>{petId}</c> is not reported as a removal.
-    /// </summary>
-    public string Key => ApiVersion is null
-        ? $"{Method} {PathTemplate.Normalize(Path)}"
-        : $"{Method} {PathTemplate.Normalize(Path)} [{ApiVersion}]";
+    /// <summary>Human-readable identity, e.g. <c>GET /pets/{id}</c>, or <c>GET /pets/{id} [2.0]</c> with an <see cref="ApiVersion"/>.</summary>
+    public string Display => Identity.Display;
+
+    /// <summary>Identity used to pair operations across versions (see <see cref="OperationIdentity.Key"/>).</summary>
+    public string Key => Identity.Key;
 }
 
 /// <summary>A single declared parameter.</summary>

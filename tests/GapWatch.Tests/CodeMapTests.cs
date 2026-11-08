@@ -20,8 +20,12 @@ public sealed class CodeMapTests
     private static string Routes(CodeMap map) =>
         string.Join(", ", map.Endpoints.Select(e => $"{e.Method} {e.Route}").Order(StringComparer.Ordinal));
 
-    private static Finding At(string operation, string location = "operation", SchemaOrigin? origin = null) =>
-        new(RuleCatalog.TypeChanged, operation, location, "m") { Origin = origin };
+    private static Finding At(string operation, FindingLocation? location = null, SchemaOrigin? origin = null) =>
+        new(RuleCatalog.TypeChanged, operation, location ?? FindingLocation.Operation.Instance, "m") { Origin = origin };
+
+    private static FindingLocation Query(string name) => new FindingLocation.Parameter(name, "query");
+
+    private static FindingLocation PathParameter(string name) => new FindingLocation.Parameter(name, "path");
 
     [Test]
     public void Controller_actions_and_minimal_api_endpoints_are_found_with_their_routes()
@@ -45,10 +49,10 @@ public sealed class CodeMapTests
     {
         var map = Petstore();
 
-        map.Locate(At("GET /pets", "parameter 'status' (query)")).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 12, 17));
-        map.Locate(At("GET /pets", "parameter 'region' (query)")).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 13, 45));
-        map.Locate(At("GET /pets/{id}", "parameter 'id' (path)")).ShouldBe(new CodeLocation(File("Program.cs"), 16, 28));
-        map.Locate(At("DELETE /pets/{id}", "parameter 'id' (path)")).ShouldBe(new CodeLocation(File("Program.cs"), 12, 31));
+        map.Locate(At("GET /pets", Query("status"))).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 12, 17));
+        map.Locate(At("GET /pets", Query("region"))).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 13, 45));
+        map.Locate(At("GET /pets/{id}", PathParameter("id"))).ShouldBe(new CodeLocation(File("Program.cs"), 16, 28));
+        map.Locate(At("DELETE /pets/{id}", PathParameter("id"))).ShouldBe(new CodeLocation(File("Program.cs"), 12, 31));
     }
 
     [Test]

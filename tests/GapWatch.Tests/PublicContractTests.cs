@@ -1,5 +1,6 @@
 using GapWatch.Cli;
 using GapWatch.Core.Findings;
+using GapWatch.Core.Model;
 using GapWatch.Reporting;
 using Shouldly;
 
@@ -97,5 +98,65 @@ public sealed class PublicContractTests
         {
             output.ToString().ShouldContain(option);
         }
+    }
+
+    /// <summary>
+    /// Every operation and location string shape. Suppressions, baselines and SARIF fingerprints are built from these
+    /// strings. Append new shapes; never edit or remove a line.
+    /// </summary>
+    [Test]
+    public void Operation_and_location_strings_keep_their_format()
+    {
+        string[] shapes =
+        [
+            new OperationIdentity("GET", "/pets/{id}").Display,
+            new OperationIdentity("GET", "/pets", "2.0").Display,
+            FindingLocation.Operation.Instance.ToString(),
+            new FindingLocation.Parameter("id", "path").ToString(),
+            new FindingLocation.Parameter("tags", "query", "$[]").ToString(),
+            FindingLocation.RequestBody.Instance.ToString(),
+            new FindingLocation.RequestContent("application/json").ToString(),
+            new FindingLocation.RequestContent("application/json", "$.name").ToString(),
+            new FindingLocation.Response("200").ToString(),
+            new FindingLocation.ResponseMediaType("200", "application/xml").ToString(),
+            new FindingLocation.ResponseContent("200", "application/json").ToString(),
+            new FindingLocation.ResponseContent("4XX", "application/json", "$[].name").ToString(),
+            FindingLocation.Security.Instance.ToString(),
+        ];
+
+        string.Join("\n", shapes).ShouldBe(string.Join("\n",
+            "GET /pets/{id}",
+            "GET /pets [2.0]",
+            "operation",
+            "parameter 'id' (path)",
+            "parameter 'tags' (query): $[]",
+            "request body",
+            "request body (application/json)",
+            "request body (application/json): $.name",
+            "response 200",
+            "response 200",
+            "response 200 application/json",
+            "response 4XX application/json: $[].name",
+            "security"));
+    }
+
+    [Test]
+    public void An_operation_string_reads_back_to_its_identity()
+    {
+        OperationIdentity.Parse("GET /pets/{id}").ShouldBe(new OperationIdentity("GET", "/pets/{id}"));
+        OperationIdentity.Parse("GET /pets [2.0]").ShouldBe(new OperationIdentity("GET", "/pets", "2.0"));
+        OperationIdentity.Parse("operation").ShouldBeNull();
+    }
+
+    [Test]
+    public void Every_built_in_finding_carries_its_structured_location()
+    {
+        var baseline = GapWatch.OpenApi.ContractLoader.Load(TestSpec.FixturePath("petstore-v1.json"));
+        var head = GapWatch.OpenApi.ContractLoader.Load(TestSpec.FixturePath("petstore-v2.json"));
+
+        var findings = new GapWatch.Core.Comparison.ContractComparer().Compare(baseline, head).Findings;
+
+        findings.ShouldNotBeEmpty();
+        findings.Where(f => f.At?.ToString() != f.Location).Select(f => $"{f.Rule.Id} {f.Location}").ShouldBeEmpty();
     }
 }

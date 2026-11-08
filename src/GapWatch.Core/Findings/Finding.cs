@@ -37,6 +37,19 @@ public sealed record RuleDescriptor(string Id, string Name, Severity DefaultSeve
 /// <param name="Message">Complete, standalone explanation.</param>
 public sealed record Finding(RuleDescriptor Rule, string Operation, string Location, string Message)
 {
+    /// <summary>A finding whose <see cref="Location"/> is the string form of <paramref name="at"/>.</summary>
+    public Finding(RuleDescriptor rule, string operation, FindingLocation at, string message)
+        : this(rule, operation, (at ?? throw new ArgumentNullException(nameof(at))).ToString(), message)
+    {
+        At = at;
+    }
+
+    /// <summary>
+    /// The structured form of <see cref="Location"/>, for code that needs the parameter, media type or status. Set by
+    /// every built-in rule; null for a finding built from a location string alone.
+    /// </summary>
+    public FindingLocation? At { get; init; }
+
     /// <summary>
     /// Effective severity: the rule's default unless a <see cref="Policy.CompatibilityPolicy"/> overrode it.
     /// </summary>

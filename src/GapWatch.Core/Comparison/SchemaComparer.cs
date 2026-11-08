@@ -23,7 +23,7 @@ internal delegate void ReportFinding(RuleDescriptor rule, string schemaPath, str
 /// </summary>
 internal static class SchemaComparer
 {
-    public const string Root = "$";
+    public const string Root = FindingLocation.Root;
 
     private static readonly Dictionary<string, (string Family, int Rank)> NumericFormats = new(StringComparer.Ordinal)
     {

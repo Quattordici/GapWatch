@@ -152,7 +152,7 @@ public static class ApiVersionAnalyzer
             var seen = new HashSet<string>(StringComparer.Ordinal);
             foreach (var replacement in group.Where(r => seen.Add(r.Operation)))
             {
-                findings.Add(new Finding(rule, replacement.Operation, "operation", message)
+                findings.Add(new Finding(rule, replacement.Operation, FindingLocation.Operation.Instance, message)
                 {
                     ApiVersion = text,
                     Position = replacement.Head?.Position,
@@ -203,13 +203,20 @@ public static class ApiVersionAnalyzer
         if (finding.Rule == RuleCatalog.EnumValueRemoved && was.Source == Source.Parameter)
         {
             return was.Parameter is { } parameter
-                   && finding.Location == $"parameter '{parameter.Name}' ({parameter.Location})";
+                   && finding.At is FindingLocation.Parameter at
+                   && at.Name == parameter.Name && at.In == parameter.Location && at.SchemaPath == FindingLocation.Root;
         }
 
         if (finding.Rule == RuleCatalog.MediaTypeRemoved && was.Source == Source.MediaType)
         {
-            return was.Versions.Any(v => lost.Contains(v.Key) && v.MediaTypes.Any(m => finding.Location.Contains($"({m})", StringComparison.Ordinal)
-                                                                                           || finding.Message.Contains($"'{m}'", StringComparison.Ordinal)));
+            var mediaType = finding.At switch
+            {
+                FindingLocation.RequestContent { SchemaPath: FindingLocation.Root } request => request.MediaType,
+                FindingLocation.ResponseMediaType response => response.MediaType,
+                _ => null,
+            };
+            return mediaType is not null
+                   && was.Versions.Any(v => lost.Contains(v.Key) && v.MediaTypes.Contains(mediaType, StringComparer.Ordinal));
         }
 
         return false;
