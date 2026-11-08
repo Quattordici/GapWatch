@@ -160,6 +160,38 @@ public sealed class ApiVersionRuleTests
         Analyze(QueryVersions("1.0"), QueryVersions("1.0", "2.0")).RuleIds().ShouldBe("GW062");
     }
 
+    /// <summary>GET /pets with an <c>api-version</c> query parameter that takes any string.</summary>
+    private static readonly string AnyQueryVersion = TestSpec.Operation("get", "/pets", $$"""
+        "parameters": [ { "name": "api-version", "in": "query", "required": true, "schema": { "type": "string", "example": "2.0" } } ],
+        {{NoContent}}
+        """);
+
+    [Test]
+    public void Declaring_the_versions_a_document_already_served_is_neither_GW023_nor_GW062()
+    {
+        // Asp.Versioning 10 added the enum to documents that used to leave api-version free.
+        Analyze(AnyQueryVersion, QueryVersions("2.0")).Findings.ShouldBeEmpty();
+        Analyze(AnyQueryVersion, QueryVersions("1.0", "2.0")).Findings.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void In_a_version_document_an_enum_of_its_own_version_is_not_GW023_and_another_version_is()
+    {
+        static NamedContract Document(string path, string version, string spec) =>
+            new(path, TestSpec.Parse(spec.Replace("\"version\": \"1\"", $"\"version\": \"{version}\"", StringComparison.Ordinal)));
+
+        static ComparisonResult Run(string headEnum)
+        {
+            var (baseline, head) = VersionedDocuments.Combine(
+                [Document("base/v1.json", "1.0", AnyQueryVersion)],
+                [Document("head/v1.json", "1.0", QueryVersions(headEnum))]);
+            return Check(baseline, head, VersioningOptions.Default);
+        }
+
+        Run("1.0").Findings.ShouldBeEmpty();
+        Run("2.0").RuleIds().ShouldBe("GW023");
+    }
+
     // --- GW063 ApiVersionDeprecated -------------------------------------------------------------------------------
 
     [Test]
