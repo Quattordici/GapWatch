@@ -384,6 +384,25 @@ public sealed class CliTests
     }
 
     [Test]
+    public void Base_ref_reads_a_folder_nested_deeper_in_the_repository()
+    {
+        // git ls-tree filters by the current directory unless --full-tree is passed; git runs in the folder's parent.
+        using var dir = new TempDir();
+        Directory.CreateDirectory(Path.Join(dir.Path, "services", "pets", "api"));
+        dir.Write("services/pets/api/openapi.json", TestSpec.Document("""{ "/pets": { "get": { "responses": { "204": { "description": "d" } } } }, "/owners": { "get": { "responses": { "204": { "description": "d" } } } } }"""));
+        Git(dir.Path, "init", "-q");
+        Git(dir.Path, "add", ".");
+        Git(dir.Path, "commit", "-q", "-m", "base");
+        var folder = Path.Join(dir.Path, "services", "pets", "api");
+        File.WriteAllText(Path.Join(folder, "openapi.json"), TestSpec.Operation("get", "/pets"));
+
+        var (code, output, error) = Run("compare", folder, folder, "--base-ref", "HEAD");
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold, error);
+        output.ShouldContain("[GW001] GET /owners");
+    }
+
+    [Test]
     public void Base_ref_with_an_unknown_revision_is_an_input_error()
     {
         using var dir = Repository();
@@ -420,6 +439,73 @@ public sealed class CliTests
         var (code, output, _) = Run("compare", before, after, "--config", expired);
         code.ShouldBe(ExitCodes.FindingsAtThreshold);
         output.ShouldContain("  GW001 * (expires 2000-01-01)\n");
+    }
+
+    // --- --input csharp -----------------------------------------------------------------------------------------
+
+    private const string PetsController = """
+        using Microsoft.AspNetCore.Mvc;
+
+        [ApiController]
+        [Route("pets")]
+        public sealed class PetsController : ControllerBase
+        {
+            [HttpGet] public IActionResult List(int? limit) => Ok();
+            [HttpGet("{id}")] public IActionResult Get(long id) => Ok();
+        }
+        """;
+
+    [Test]
+    public void Csharp_input_compares_two_source_folders()
+    {
+        using var dir = new TempDir();
+        Directory.CreateDirectory(Path.Join(dir.Path, "before"));
+        Directory.CreateDirectory(Path.Join(dir.Path, "after"));
+        dir.Write("before/PetsController.cs", PetsController);
+        dir.Write("after/PetsController.cs", PetsController.Replace("""    [HttpGet("{id}")] public IActionResult Get(long id) => Ok();""", "", StringComparison.Ordinal));
+
+        var (code, output, _) = Run("compare", Path.Join(dir.Path, "before"), Path.Join(dir.Path, "after"), "--input", "csharp");
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain("[GW001] GET /pets/{id}");
+    }
+
+    [Test]
+    public void Csharp_input_with_base_ref_reads_the_source_tree_from_git_and_points_at_the_head_file()
+    {
+        using var dir = new TempDir();
+        Directory.CreateDirectory(Path.Join(dir.Path, "src", "bin"));
+        dir.Write("src/PetsController.cs", PetsController);
+        dir.Write("src/bin/Ignored.cs", "this is not C#");
+        Git(dir.Path, "init", "-q");
+        Git(dir.Path, "add", ".");
+        Git(dir.Path, "commit", "-q", "-m", "base");
+        var controller = dir.Write("src/PetsController.cs", PetsController.Replace("int? limit", "int limit", StringComparison.Ordinal));
+
+        // The repository root itself, and a folder below it (git then runs in the folder).
+        foreach (var folder in new[] { dir.Path, Path.Join(dir.Path, "src") })
+        {
+            var (code, output, error) = Run("compare", folder, folder, "--input", "csharp", "--base-ref", "HEAD");
+
+            code.ShouldBe(ExitCodes.FindingsAtThreshold, error);
+            output.ShouldContain("[GW011] GET /pets");
+            output.ShouldContain($"at {controller.Replace('\\', '/')}:7:45");
+        }
+    }
+
+    [Test]
+    public void Csharp_input_needs_folders_and_a_known_input_value()
+    {
+        using var dir = new TempDir();
+        var file = dir.Write("Api.cs", PetsController);
+
+        var (code, _, error) = Run("compare", file, file, "--input", "csharp");
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("--input csharp needs <base> and <head> to be folders");
+
+        (code, _, error) = Run("compare", V1, V2, "--input", "wsdl");
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("Unknown input 'wsdl'");
     }
 
     private sealed class TempDir : IDisposable

@@ -27,7 +27,7 @@ public static class CSharpContractReader
 
         var operations = compilation.SyntaxTrees
             .SelectMany(tree => EndpointScanner.Scan(tree, compilation))
-            .Select(reader.Read)
+            .SelectMany(reader.ReadAll)
             .ToList();
 
         return new ApiContract(null, null, operations);

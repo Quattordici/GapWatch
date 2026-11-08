@@ -11,6 +11,7 @@ GapWatch detects breaking changes between two versions of an HTTP API contract. 
 ## Architecture rules
 
 - Every source format compiles into the normalized `ApiContract`. Rules only see that model. Never let reader-specific types leak into `GapWatch.Core`.
+- The C# reader (`CSharpContractReader` in `GapWatch.Roslyn`, `--input csharp`) must produce the same operation and location strings as the OpenAPI readers, so suppressions and baselines carry over. Document every C#-to-contract mapping in `docs/csharp-input.md`.
 - Configuration (severity overrides, disabled rules, justified suppressions) is applied **after** comparison by `CompatibilityPolicy.Apply`. Rules never read configuration. Reading `gapwatch.json` lives in `GapWatch.Cli` (`ConfigFile`).
 - Comparison is **direction-aware** (`Direction.Request` vs `Direction.Response`). Every new rule must state which direction it applies to and why.
 - Rule ids (`GWnnn`) are public and permanent: never renumber, reuse or change the meaning of one. Add new ids at the end of their group, and append the rule to `ReleasedRules` in `PublicContractTests`; never edit or remove a line there.

@@ -1,8 +1,8 @@
 # GapWatch
 
-GapWatch finds **breaking changes between two versions of an HTTP API contract** before they reach your consumers. It compares a baseline OpenAPI document with a proposed one and explains every consumer-visible difference, with a rule id, a precise location and a severity.
+GapWatch finds **breaking changes between two versions of an HTTP API contract** before they reach your consumers. It compares a baseline OpenAPI document with a proposed one, or two versions of ASP.NET Core code, and explains every consumer-visible difference, with a rule id, a precise location and a severity.
 
-> **Status: v1.0.** Rule ids, exit codes, options, configuration and report formats are stable under semantic versioning; see the [compatibility policy](docs/compatibility.md). See also [Limitations](#limitations).
+> **Status: v1.1.** Rule ids, exit codes, options, configuration and report formats are stable under semantic versioning; see the [compatibility policy](docs/compatibility.md). See also [Limitations](#limitations).
 
 ## Why another API diff tool
 
@@ -31,7 +31,7 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>] [--base-ref <rev>] [--input openapi|csharp]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
@@ -45,6 +45,7 @@ gapwatch --version | --help
 - `--baseline` accepts the findings listed in a baseline file, and `--write-baseline` writes one from the current run. Baselines are for adopting GapWatch against a base that is far behind, such as the last release (see [Configuration](docs/configuration.md#baselines)).
 - `--base-ref` reads `<base>` from a git revision instead of the working tree, e.g. `gapwatch compare api/openapi.json api/openapi.json --base-ref origin/main`. It works for files and folders, and only reads from git.
 - `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
+- `--input csharp` reads the contract from ASP.NET Core source instead of OpenAPI documents: `<base>` and `<head>` are source folders, e.g. `gapwatch compare src/Api src/Api --input csharp --base-ref origin/main`. See [Reading the contract from C#](docs/csharp-input.md).
 
 ### Exit codes
 
@@ -181,13 +182,13 @@ src/
   GapWatch.Core        Contract model, rule catalog, comparison engine, policy (overrides, suppressions). No I/O, no dependencies.
   GapWatch.OpenApi     OpenAPI 3.x readers behind IContractReader: JSON (System.Text.Json) and YAML (YamlDotNet, converted to JSON first).
   GapWatch.Reporting   Console, Markdown, SARIF and JUnit renderers, rule list. BCL only.
-  GapWatch.Roslyn      Maps findings to C# code (controllers, minimal APIs, DTOs) with Microsoft.CodeAnalysis.CSharp; source files only.
+  GapWatch.Roslyn      Reads the contract from C# (--input csharp) and maps findings to C# code (controllers, minimal APIs, DTOs) with Microsoft.CodeAnalysis.CSharp; source files only.
   GapWatch.Cli         The `gapwatch` dotnet tool and the gapwatch.json reader. GapWatchCli.Run is console-free and unit tested.
 tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```
 
-Every source format compiles into one normalized `ApiContract`; rules only ever see that model. Code mapping happens after comparison and policy, on the findings, so it never influences a verdict. A Roslyn reader that builds the contract itself from code could still be added later without touching a single rule.
+Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That includes C# source: `CSharpContractReader` builds the same model from controllers, minimal APIs and DTOs, so it added no rules. Code mapping with `--source` happens after comparison and policy, on the findings, so it never influences a verdict.
 
 ## Running the tests
 
@@ -200,9 +201,10 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
 - **Common value constraints only.** Length, item-count and numeric bounds, `pattern`, `additionalProperties: false` and `discriminator` are compared (GW032 to GW037). `multipleOf`, `uniqueItems`, `minProperties`, `maxProperties` and `const` are not. Whether one `pattern` accepts a subset of another is not decided, so a changed pattern is a Warning to review.
-- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version exists in no head document, so its SARIF result points at the first head document, line 1, as a removed operation does.
+- **API versions from the spec, or from code with `--input csharp`.** `[ApiVersion]` and `[MapToApiVersion]` are read when the contract comes from C#, not by `--source`. A removed version exists in no head document, so its SARIF result points at the first head document, line 1, as a removed operation does.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
+- **C# input sees what the code says statically.** Runtime-built routes, filters, source generators and validation libraries are not seen; see the [limits](docs/csharp-input.md#limits).
 
 ## Roadmap
 
@@ -213,7 +215,8 @@ To regenerate the golden reports after an intentional output change, run the tes
 | v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
 | v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules and folder mode (done) |
 | v0.5 | Value-constraint rules GW032 to GW037 (done), `failOn` and suppression expiry in `gapwatch.json` (done), `--base-ref` (done) |
-| v1.0 | Stable rule ids and a [compatibility policy](docs/compatibility.md) for the tool itself (this release) |
+| v1.0 | Stable rule ids and a [compatibility policy](docs/compatibility.md) for the tool itself (done) |
+| v1.1 | [Contract read from C# source](docs/csharp-input.md) with `--input csharp`, no new rule ids (this release) |
 | v1.x | Custom rule plugins |
 
 ## License

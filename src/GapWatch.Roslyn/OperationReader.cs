@@ -13,7 +13,7 @@ namespace GapWatch.Roslyn;
 /// <c>[ApiController]</c> action, or a minimal API endpoint whose method allows a body). Anything else, such as
 /// <c>CancellationToken</c> or a service interface, is not part of the contract.
 /// </remarks>
-internal sealed class OperationReader(Compilation compilation, SchemaMapper schemas)
+internal sealed partial class OperationReader(Compilation compilation, SchemaMapper schemas)
 {
     private const string Json = "application/json";
     private const string ProblemJson = "application/problem+json";
@@ -41,6 +41,33 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
         ["InternalServerError"] = (500, 0),
         ["ValidationProblem"] = (400, -1),
     };
+
+    /// <summary>
+    /// The operations of one endpoint: one, or one per API version it maps to (Asp.Versioning). A route with a
+    /// <c>{version:apiVersion}</c> segment gets the version in its path (<c>/api/v1/pets</c>), as the API explorer
+    /// substitutes it; otherwise the operation carries the version (<c>GET /pets [1.0]</c>), as it does in one document
+    /// per version. Every operation of a deprecated version is deprecated, so GW061 and GW063 apply.
+    /// </summary>
+    public IEnumerable<OperationContract> ReadAll(EndpointDeclaration endpoint)
+    {
+        var versions = ApiVersions(endpoint);
+        if (versions.Count == 0)
+        {
+            yield return Read(endpoint);
+            yield break;
+        }
+
+        foreach (var (version, deprecated) in versions)
+        {
+            var route = ApiVersionSegment().Replace(endpoint.Route, UrlSegment(version));
+            var operation = Read(endpoint with { Route = route });
+            yield return operation with
+            {
+                Deprecated = operation.Deprecated || deprecated,
+                ApiVersion = route == endpoint.Route ? version : null,
+            };
+        }
+    }
 
     public OperationContract Read(EndpointDeclaration endpoint)
     {
@@ -736,6 +763,102 @@ internal sealed class OperationReader(Compilation compilation, SchemaMapper sche
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Order(StringComparer.Ordinal));
     }
+
+    // --- API versions --------------------------------------------------------------------------------------------
+
+    /// <summary>
+    /// <c>[ApiVersion]</c> on the controller or action (with <c>Deprecated = true</c>), narrowed by
+    /// <c>[MapToApiVersion]</c>; for minimal APIs, <c>HasApiVersion</c>, <c>HasDeprecatedApiVersion</c> and
+    /// <c>MapToApiVersion</c> calls. <c>[ApiVersionNeutral]</c> means none. Version sets built with
+    /// <c>NewApiVersionSet()</c> are not followed.
+    /// </summary>
+    private List<(string Version, bool Deprecated)> ApiVersions(EndpointDeclaration endpoint)
+    {
+        var attributes = endpoint.Attributes.Concat(endpoint.TypeAttributes).ToList();
+        if (attributes.Has("ApiVersionNeutral"))
+        {
+            return [];
+        }
+
+        var declared = new List<(string Version, bool Deprecated)>();
+        var mapped = new List<string>();
+        foreach (var attribute in attributes)
+        {
+            var model = compilation.GetSemanticModel(attribute.SyntaxTree);
+            var value = Positional(attribute).FirstOrDefault()?.Expression is { } expression ? VersionText(expression, model) : null;
+            switch (Name(attribute))
+            {
+                case "ApiVersion" when value is not null:
+                    declared.Add((value, Property(attribute, "Deprecated") is { } d && model.GetConstantValue(d) is { HasValue: true, Value: true }));
+                    break;
+                case "MapToApiVersion" when value is not null:
+                    mapped.Add(value);
+                    break;
+            }
+        }
+
+        foreach (var call in endpoint.Conventions)
+        {
+            var model = compilation.GetSemanticModel(call.SyntaxTree);
+            var value = call.ArgumentList.Arguments.FirstOrDefault()?.Expression is { } expression ? VersionText(expression, model) : null;
+            switch (MethodName(call))
+            {
+                case "HasApiVersion" when value is not null:
+                    declared.Add((value, false));
+                    break;
+                case "HasDeprecatedApiVersion" when value is not null:
+                    declared.Add((value, true));
+                    break;
+                case "MapToApiVersion" when value is not null:
+                    mapped.Add(value);
+                    break;
+            }
+        }
+
+        List<(string Version, bool Deprecated)> versions = mapped.Count == 0
+            ? declared
+            : mapped.Select(m => declared.Where(d => SameVersion(d.Version, m)).Select(d => d with { Version = m }).FirstOrDefault((m, false))).ToList();
+        return versions
+            .GroupBy(v => UrlSegment(v.Version), StringComparer.OrdinalIgnoreCase)
+            .Select(g => (g.First().Version, g.Any(v => v.Deprecated)))
+            .ToList();
+    }
+
+    /// <summary><c>"1.0"</c>, <c>1.0</c>, <c>new ApiVersion(1, 0)</c> or <c>new ApiVersion(2)</c> as text.</summary>
+    private static string? VersionText(ExpressionSyntax expression, SemanticModel model)
+    {
+        if (expression is BaseObjectCreationExpressionSyntax { ArgumentList.Arguments: { Count: > 0 } arguments })
+        {
+            var parts = arguments.Select(a => model.GetConstantValue(a.Expression)).ToList();
+            if (parts.All(p => p is { HasValue: true, Value: int or double }))
+            {
+                return parts.Count == 1 && parts[0].Value is double number
+                    ? Number(number)
+                    : string.Join(".", parts.Select(p => Convert.ToString(p.Value, System.Globalization.CultureInfo.InvariantCulture)));
+            }
+
+            return parts[0] is { HasValue: true, Value: string text } ? text : null;
+        }
+
+        return model.GetConstantValue(expression) switch
+        {
+            { HasValue: true, Value: string text } => text,
+            { HasValue: true, Value: double number } => Number(number),
+            { HasValue: true, Value: int number } => number.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            _ => null,
+        };
+
+        static string Number(double value) => value.ToString("0.0###", System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>The <c>VVV</c> format the API explorer substitutes in URLs: <c>1.0</c> is <c>1</c>, <c>1.1</c> stays.</summary>
+    private static string UrlSegment(string version) =>
+        version.EndsWith(".0", StringComparison.Ordinal) ? version[..^2] : version;
+
+    private static bool SameVersion(string a, string b) => string.Equals(UrlSegment(a), UrlSegment(b), StringComparison.OrdinalIgnoreCase);
+
+    [System.Text.RegularExpressions.GeneratedRegex(@"\{[^{}:]+:apiVersion\}", System.Text.RegularExpressions.RegexOptions.IgnoreCase)]
+    private static partial System.Text.RegularExpressions.Regex ApiVersionSegment();
 
     // --- Shared helpers ------------------------------------------------------------------------------------------
 
