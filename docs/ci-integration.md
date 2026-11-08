@@ -113,7 +113,15 @@ There is no built-in task that posts a file as a pull request comment. Post `gap
 - **Azure DevOps Services with GitHub Advanced Security for Azure DevOps:** publish third-party SARIF with the `AdvancedSecurity-Publish@1` task (`SarifsInputDirectory` pointing at the folder with `gapwatch.sarif`, and a `Category` such as `gapwatch`). Results then appear in the Advanced Security code scanning tab. The file path in each result must be accessible to the task on the agent, so generate the SARIF from the repository root with a relative head path, as for GitHub.
 - **Without Advanced Security (including most Azure DevOps Server installations):** the Tests tab and the pull request comment above give the same information. A SARIF viewer extension from the Marketplace can show the file as a build tab; check that the extension is available for your server version.
 
-## 6. A checklist for the first run
+## 6. Upgrading the OpenAPI generator
+
+A new generator version can change the document without changing the API, and GapWatch reports what the document now says. Moving eShop's Catalog API to .NET 10 (`Microsoft.AspNetCore.OpenApi` 10, OpenAPI 3.1) changed every `int` in a response to `[integer, string]` and made the `ProblemDetails` fields nullable: about 290 findings for one small service. They are real for generated clients, whose types change, but they are not changes you made.
+
+- Upgrade the generator in a pull request of its own, so the findings are about the upgrade alone.
+- If the server never sends numbers as strings, set `JsonNumberHandling.Strict` in the JSON options the document is generated from, and the `integer`/`number` types come back.
+- Accept the rest once: run with `--write-baseline` on the upgrade, commit the baseline, and the next pull requests compare against it (see [Baselines](configuration.md#baselines)).
+
+## 7. A checklist for the first run
 
 - [ ] Base and head are produced by the same generator and version.
 - [ ] The compare step runs from the repository root with relative paths.

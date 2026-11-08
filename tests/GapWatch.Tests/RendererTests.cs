@@ -111,6 +111,40 @@ public sealed class RendererTests
         new ConsoleReportRenderer().Render(result, Context).ShouldContain("No unsuppressed differences");
     }
 
+    /// <summary>A change in schema <c>Pet $.name</c> as seen by each of <paramref name="operations"/>.</summary>
+    private static List<Finding> SharedChange(params string[] operations) =>
+        operations.Select(o => new Finding(RuleCatalog.TypeChanged, o, $"response 200 application/json: $.name ({o})", "Type changed.")
+        {
+            Origin = new SchemaOrigin("Pet", "$.name", Direction.Response),
+        }).ToList();
+
+    [Test]
+    public void Markdown_report_lists_each_operation_of_a_shared_change_once_and_folds_long_lists()
+    {
+        var shortList = new MarkdownReportRenderer().Render(new ComparisonResult(SharedChange("GET /a", "GET /a", "GET /b")), Context);
+        var longList = new MarkdownReportRenderer().Render(
+            new ComparisonResult(SharedChange("GET /1", "GET /2", "GET /3", "GET /4", "GET /5", "GET /6")), Context);
+
+        shortList.ShouldContain("| GW020 | `GET /a`<br>`GET /b` | schema `Pet` `$.name` (response, 2 operations)");
+        longList.ShouldContain("`GET /3`<br>`GET /4`<details><summary>and 2 more</summary>`GET /5`<br>`GET /6`</details> |");
+    }
+
+    [Test]
+    public void Markdown_report_stays_within_a_pull_request_comment_and_says_what_it_left_out()
+    {
+        var findings = Enumerable.Range(0, 2_000)
+            .Select(i => new Finding(RuleCatalog.OperationRemoved, $"GET /pets/{i}", "operation", $"Operation 'GET /pets/{i}' was removed."))
+            .ToList();
+
+        var report = new MarkdownReportRenderer().Render(new ComparisonResult(findings), Context);
+
+        (report.Length <= MarkdownReportRenderer.MaxLength).ShouldBeTrue();
+        report.ShouldContain("(2000 breaking, 0 warning(s), 0 info)");
+        report.ShouldContain("row(s) were left out to keep this comment under the size a pull request comment allows.");
+        report.ShouldContain("`GET /pets/0`");
+        report.ShouldNotContain("`GET /pets/1999`");
+    }
+
     [Test]
     public void Markdown_report_collapses_suppressed_findings_and_escapes_the_justification()
     {

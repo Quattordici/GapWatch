@@ -148,6 +148,18 @@ public sealed class MarkdownReportRenderer : IReportRenderer
     /// <summary>Hidden marker so CI can find and update a single "sticky" comment instead of posting a new one.</summary>
     public const string Marker = "<!-- gapwatch-report -->";
 
+    /// <summary>
+    /// The longest report, in characters. A GitHub pull request comment holds at most 65,536; rows past this budget are
+    /// left out and counted, so the comment can still be posted.
+    /// </summary>
+    public const int MaxLength = 60_000;
+
+    /// <summary>Shared-schema rows list their operations inline up to this count, and in a folded list beyond it.</summary>
+    public const int InlineOperations = 5;
+
+    /// <summary>Room kept for the closing note and sections after the budget is reached.</summary>
+    private const int Reserve = 1_000;
+
     public string Render(ComparisonResult result, ReportContext context)
     {
         ArgumentNullException.ThrowIfNull(result);
@@ -171,16 +183,37 @@ public sealed class MarkdownReportRenderer : IReportRenderer
 
         text.Append('`').Append(Code(context.BaseLabel)).Append("` → `").Append(Code(context.HeadLabel)).Append("`\n");
 
-        AppendGroup(text, result, Severity.Breaking, "❌", collapsed: false);
-        AppendGroup(text, result, Severity.Warning, "⚠️", collapsed: false);
-        AppendGroup(text, result, Severity.Info, "ℹ️", collapsed: true);
-        AppendSuppressed(text, result);
+        var omitted = 0;
+        AppendGroup(text, result, Severity.Breaking, "❌", collapsed: false, ref omitted);
+        AppendGroup(text, result, Severity.Warning, "⚠️", collapsed: false, ref omitted);
+        AppendGroup(text, result, Severity.Info, "ℹ️", collapsed: true, ref omitted);
+        AppendSuppressed(text, result, ref omitted);
         AppendUnused(text, result);
+
+        if (omitted > 0)
+        {
+            text.Append("\n> [!WARNING]\n> ").Append(omitted.ToString(CultureInfo.InvariantCulture))
+                .Append(" row(s) were left out to keep this comment under the size a pull request comment allows. ")
+                .Append("The counts above include them; the SARIF and JUnit reports list every finding.\n");
+        }
 
         return text.ToString();
     }
 
-    private static void AppendSuppressed(StringBuilder text, ComparisonResult result)
+    /// <summary>Appends <paramref name="row"/> while the report stays within <see cref="MaxLength"/>; otherwise counts it.</summary>
+    private static void AppendRow(StringBuilder text, string row, ref int omitted)
+    {
+        if (omitted == 0 && text.Length + row.Length <= MaxLength - Reserve)
+        {
+            text.Append(row);
+        }
+        else
+        {
+            omitted++;
+        }
+    }
+
+    private static void AppendSuppressed(StringBuilder text, ComparisonResult result, ref int omitted)
     {
         if (result.Suppressed.Count == 0)
         {
@@ -191,13 +224,13 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         text.Append("| Rule | Severity | Operation | Location | Details | Justification |\n|---|---|---|---|---|---|\n");
         foreach (var (finding, suppression) in result.Suppressed)
         {
-            text.Append("| ").Append(finding.Rule.Id)
+            AppendRow(text, new StringBuilder().Append("| ").Append(finding.Rule.Id)
                 .Append(" | ").Append(finding.Severity)
                 .Append(" | `").Append(Code(finding.Operation))
                 .Append("` | `").Append(Code(finding.Location)).Append('`').Append(Line(finding))
                 .Append(" | ").Append(Cell(finding.Message))
                 .Append(" | ").Append(Cell(suppression.Justification))
-                .Append(" |\n");
+                .Append(" |\n").ToString(), ref omitted);
         }
 
         text.Append("\n</details>\n");
@@ -218,7 +251,7 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         }
     }
 
-    private static void AppendGroup(StringBuilder text, ComparisonResult result, Severity severity, string icon, bool collapsed)
+    private static void AppendGroup(StringBuilder text, ComparisonResult result, Severity severity, string icon, bool collapsed, ref int omitted)
     {
         var group = result.Findings.Where(f => f.Severity == severity).ToList();
         if (group.Count == 0)
@@ -242,38 +275,63 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         foreach (var change in FindingGroup.Group(group))
         {
             var finding = change.First;
+            var row = new StringBuilder();
             if (change.IsShared)
             {
-                // One row per change: the component path is the cause, the operations are where consumers see it.
-                text.Append("| ").Append(finding.Rule.Id)
-                    .Append(" | ").Append(string.Join("<br>", change.Members.Select(m => $"`{Code(m.Operation)}`")));
+                // One row per change: the component path is the cause, the operations are where consumers see it. An
+                // operation that uses the schema in several responses (400 and 404) is listed once.
+                var operations = change.Members.Select(m => m.Operation).Distinct(StringComparer.Ordinal).ToList();
+                row.Append("| ").Append(finding.Rule.Id).Append(" | ").Append(OperationList(operations));
                 if (finding.Origin is { } origin)
                 {
-                    text.Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
+                    row.Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
                         .Append("` (").Append(origin.Direction.ToString().ToLowerInvariant()).Append(", ");
                 }
                 else
                 {
-                    text.Append(" | API version `").Append(Code(finding.ApiVersion!)).Append("` (");
+                    row.Append(" | API version `").Append(Code(finding.ApiVersion!)).Append("` (");
                 }
 
-                text.Append(change.Members.Count).Append(" operations)").Append(Line(finding))
+                row.Append(operations.Count).Append(" operations)").Append(Line(finding))
                     .Append(" | ").Append(Cell(finding.Message))
                     .Append(" |\n");
-                continue;
+            }
+            else
+            {
+                row.Append("| ").Append(finding.Rule.Id)
+                    .Append(" | `").Append(Code(finding.Operation))
+                    .Append("` | `").Append(Code(finding.Location)).Append('`').Append(Line(finding))
+                    .Append(" | ").Append(Cell(finding.Message))
+                    .Append(" |\n");
             }
 
-            text.Append("| ").Append(finding.Rule.Id)
-                .Append(" | `").Append(Code(finding.Operation))
-                .Append("` | `").Append(Code(finding.Location)).Append('`').Append(Line(finding))
-                .Append(" | ").Append(Cell(finding.Message))
-                .Append(" |\n");
+            AppendRow(text, row.ToString(), ref omitted);
         }
 
         if (collapsed)
         {
             text.Append("\n</details>\n");
         }
+    }
+
+    /// <summary>
+    /// The operations of a shared change: inline up to <see cref="InlineOperations"/>, otherwise the first ones and the
+    /// rest in a folded list, so one widely used schema does not fill the comment. On one line, as a table cell must be.
+    /// </summary>
+    private static string OperationList(IReadOnlyList<string> operations)
+    {
+        static string Item(string operation) => $"`{Code(operation)}`";
+
+        if (operations.Count <= InlineOperations)
+        {
+            return string.Join("<br>", operations.Select(Item));
+        }
+
+        var shown = InlineOperations - 1;
+        return string.Join("<br>", operations.Take(shown).Select(Item))
+               + string.Create(CultureInfo.InvariantCulture, $"<details><summary>and {operations.Count - shown} more</summary>")
+               + string.Join("<br>", operations.Skip(shown).Select(Item))
+               + "</details>";
     }
 
     /// <summary>
