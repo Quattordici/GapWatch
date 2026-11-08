@@ -43,6 +43,8 @@ public static class GapWatchCli
           --config <file>                 gapwatch.json with severity overrides and suppressions.
           --source <dir>                  C# source of the head API. Maps findings to the controller action,
                                           minimal API endpoint, parameter or DTO property behind them.
+          --baseline <file>               Accept the findings listed in a baseline file (exact matches only).
+          --write-baseline <file>         Write every current finding to a baseline file, then report with it.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
         <head> is the proposed change.
@@ -101,7 +103,7 @@ public static class GapWatchCli
 
     private static int Compare(string[] args, TextWriter output, TextWriter error)
     {
-        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source"]);
+        var options = Options.Parse(args, allowed: ["--format", "--output", "--fail-on", "--config", "--source", "--baseline", "--write-baseline"]);
         if (options.Positional.Count != 2)
         {
             throw new UsageException("compare needs exactly two inputs: <base> <head>.");
@@ -114,12 +116,28 @@ public static class GapWatchCli
             ? ConfigFile.Load(configPath)
             : CompatibilityPolicy.Default;
 
-        var baselinePath = options.Positional[0];
+        var basePath = options.Positional[0];
         var headPath = options.Positional[1];
 
-        var baseline = ContractLoader.Load(baselinePath);
+        var baseContract = ContractLoader.Load(basePath);
         var head = ContractLoader.Load(headPath);
-        var result = policy.Apply(new ContractComparer().Compare(baseline, head));
+        var result = policy.Apply(new ContractComparer().Compare(baseContract, head));
+
+        var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
+            ? BaselineFile.Load(baselinePath)
+            : Baseline.Empty;
+        if (options.Values.TryGetValue("--write-baseline", out var newBaselinePath))
+        {
+            // Keep an edited justification: from the baseline in use, or from the file being replaced.
+            var justification = baselinePath is not null ? accepted.Justification
+                : File.Exists(newBaselinePath) ? BaselineFile.Load(newBaselinePath).Justification
+                : BaselineFile.DefaultJustification;
+            accepted = Baseline.From(result.Findings, justification);
+            BaselineFile.Save(newBaselinePath, accepted);
+            error.WriteLine($"Baseline with {accepted.Entries.Count} finding(s) written to {newBaselinePath}.");
+        }
+
+        result = accepted.Apply(result);
         if (options.Values.TryGetValue("--source", out var sourceDirectory))
         {
             result = CodeMap.Load(sourceDirectory).Annotate(result);
@@ -132,7 +150,7 @@ public static class GapWatchCli
             "junit" => new JUnitReportRenderer(),
             _ => new ConsoleReportRenderer(),
         };
-        var context = new ReportContext(baselinePath, headPath) { ToolVersion = ToolVersion(), FailOn = failOn };
+        var context = new ReportContext(basePath, headPath) { ToolVersion = ToolVersion(), FailOn = failOn };
         var report = renderer.Render(result, context);
 
         if (options.Values.TryGetValue("--output", out var outputPath))

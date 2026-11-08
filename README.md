@@ -31,7 +31,7 @@ gapwatch compare before.json after.json
 ## Usage
 
 ```
-gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--source <dir>]
+gapwatch compare <base> <head> [--format console|markdown|sarif|junit] [--output <file>] [--fail-on breaking|warning|none] [--config <file>] [--baseline <file>] [--write-baseline <file>] [--source <dir>]
 gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
@@ -42,6 +42,7 @@ gapwatch --version | --help
 - `--format junit` writes JUnit XML for CI test tabs (Azure DevOps, Jenkins, GitLab).
 - `--output` writes the report to a file and prints a one-line summary.
 - `--config` reads a `gapwatch.json` with severity overrides and suppressions (see [Configuration](#configuration)).
+- `--baseline` accepts the findings listed in a baseline file, and `--write-baseline` writes one from the current run. Baselines are for adopting GapWatch against a base that is far behind, such as the last release (see [Configuration](docs/configuration.md#baselines)).
 - `--source` points at the C# source of the head API and maps each finding to the code behind it (see [Mapping findings to C# code](#mapping-findings-to-c-code)).
 
 ### Exit codes
@@ -190,7 +191,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
 | v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
-| v0.4 | `Asp.Versioning`-aware rules, baseline files for adopting on legacy APIs |
+| v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
 
 ## License

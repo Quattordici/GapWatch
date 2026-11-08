@@ -15,6 +15,12 @@ namespace GapWatch.Core.Policy;
 /// <param name="Justification">Why the change is acceptable. Required and must not be blank.</param>
 public sealed record Suppression(string RuleId, string? Operation, string? Location, string Justification)
 {
+    /// <summary>
+    /// True for an entry of a <see cref="Baseline"/> rather than of <c>gapwatch.json</c>. Such entries match exactly
+    /// (see <see cref="Baseline.Apply"/>), and an unused one is removed by rewriting the baseline.
+    /// </summary>
+    public bool IsBaseline { get; init; }
+
     /// <summary>True when this suppression covers <paramref name="finding"/>.</summary>
     public bool Matches(Finding finding)
     {
@@ -27,7 +33,8 @@ public sealed record Suppression(string RuleId, string? Operation, string? Locat
 
     /// <summary>Compact human-readable form, e.g. <c>GW025 GET /pets response 200: $.name</c>.</summary>
     public string Describe() =>
-        string.Join(' ', new[] { RuleId, Operation ?? "*", Location }.Where(part => part is not null));
+        (IsBaseline ? "baseline: " : string.Empty)
+        + string.Join(' ', new[] { RuleId, Operation ?? "*", Location }.Where(part => part is not null));
 }
 
 /// <summary>

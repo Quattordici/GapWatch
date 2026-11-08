@@ -102,7 +102,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
 
         if (result.UnusedSuppressions.Count > 0)
         {
-            text.Append("\nUNUSED SUPPRESSIONS (").Append(result.UnusedSuppressions.Count).Append(") - they match nothing and can be removed\n");
+            text.Append("\nUNUSED SUPPRESSIONS (").Append(result.UnusedSuppressions.Count).Append(") - they match nothing; remove them from gapwatch.json, or rewrite the baseline\n");
             foreach (var suppression in result.UnusedSuppressions)
             {
                 text.Append("  ").Append(suppression.Describe()).Append('\n');
@@ -199,7 +199,7 @@ public sealed class MarkdownReportRenderer : IReportRenderer
         }
 
         text.Append("\n> [!NOTE]\n> ").Append(result.UnusedSuppressions.Count)
-            .Append(" suppression(s) matched nothing and can be removed from the configuration:\n");
+            .Append(" suppression(s) matched nothing. Remove them from `gapwatch.json`, or rewrite the baseline for `baseline:` entries:\n");
         foreach (var suppression in result.UnusedSuppressions)
         {
             text.Append("> - `").Append(Code(suppression.Describe())).Append("`\n");

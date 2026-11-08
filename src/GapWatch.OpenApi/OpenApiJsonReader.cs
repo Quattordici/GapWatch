@@ -629,11 +629,25 @@ public sealed class OpenApiJsonReader : IContractReader
                 : null;
         }
 
-        private static string NormalizeMediaType(string mediaType)
+        /// <summary>
+        /// Canonical media type: type and parameter names lower-cased, values unquoted, parameters sorted by name.
+        /// Only <c>charset</c> is dropped. Other parameters can select a different representation, such as an API
+        /// version (<c>application/json;v=2.0</c>) or an OData profile, so they stay part of the media type. Dropping
+        /// them would merge such entries and leave all but one uncompared.
+        /// </summary>
+        internal static string NormalizeMediaType(string mediaType)
         {
-            var separator = mediaType.IndexOf(';', StringComparison.Ordinal);
-            var bare = separator >= 0 ? mediaType[..separator] : mediaType;
-            return bare.Trim().ToLowerInvariant();
+            var parts = mediaType.Split(';');
+            var parameters = parts[1..]
+                .Select(p => p.Split('=', 2))
+                .Where(p => p[0].Trim().Length > 0)
+                .Select(p => (Name: p[0].Trim().ToLowerInvariant(), Value: p.Length > 1 ? p[1].Trim().Trim('"') : string.Empty))
+                .Where(p => p.Name != "charset")
+                .OrderBy(p => p.Name, StringComparer.Ordinal)
+                .ThenBy(p => p.Value, StringComparer.Ordinal)
+                .Select(p => $";{p.Name}={p.Value}");
+
+            return parts[0].Trim().ToLowerInvariant() + string.Concat(parameters);
         }
 
         private static string? GetString(JsonElement element, string property) =>

@@ -61,8 +61,46 @@ A suppression that matches no finding is listed under **Unused suppressions**. T
 
 Severity overrides are applied before suppressions, and the first matching suppression wins.
 
+## Baselines
+
+A baseline accepts a whole set of existing findings at once. It is meant for adopting GapWatch when the base contract is already far behind the head: typically when you compare against the spec of your last release (see [CI integration](ci-integration.md)) and dozens of changes have accumulated since. A pull request compared against its target branch rarely needs one, because it only shows that pull request's own changes.
+
+```
+gapwatch compare release-2.3.json api/openapi.json --write-baseline gapwatch-baseline.json   # once, then commit the file
+gapwatch compare release-2.3.json api/openapi.json --baseline gapwatch-baseline.json         # in the build
+```
+
+`--write-baseline` writes every finding of the run (after `gapwatch.json` is applied) to the file and then reports with it, so that run passes. The file is plain, sorted JSON, so it diffs cleanly in review:
+
+```json
+{
+  "version": 1,
+  "justification": "Existing differences accepted when the baseline was written.",
+  "findings": [
+    {
+      "rule": "GW026",
+      "operation": "GET /pets",
+      "location": "response 200 application/json: $[].tag",
+      "message": "Optional response property 'tag' was removed."
+    }
+  ]
+}
+```
+
+Edit `justification` to say why these findings are accepted. One justification covers the whole file, and it is printed next to every baselined finding. When you rewrite the baseline, the justification is kept: it comes from the `--baseline` file in use, or else from the file being replaced.
+
+How a baseline differs from suppressions:
+
+| | Suppression in `gapwatch.json` | Baseline |
+|---|---|---|
+| Written by | A person, for one deliberate change | GapWatch, for everything that exists now |
+| Matching | Rule, plus optional `operation` and `location` with `*` wildcards | Rule, operation and location, exactly; `message` only tells apart findings at the same place |
+| Covers | Every finding it matches | One finding per entry, so a second change at the same place still reports |
+| Justification | One per suppression | One per file |
+
+Baselined findings are reported like suppressed ones: they do not count towards the summary or the exit code, and they are listed with the justification. An entry that matches nothing is listed as an unused `baseline:` entry, because the change was fixed, reverted or released. Rewrite the baseline to drop it. A baseline is applied after `gapwatch.json`: overrides and disabled rules come first, and a finding suppressed in `gapwatch.json` keeps its own justification.
+
 ## Not supported yet
 
 - Discovering `gapwatch.json` automatically, and setting `--fail-on` or the format from the file.
 - Expiry dates on suppressions.
-- Baseline files that suppress every existing finding at once (planned for v0.4).

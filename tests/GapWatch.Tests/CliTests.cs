@@ -207,6 +207,56 @@ public sealed class CliTests
     }
 
     [Test]
+    public void A_written_baseline_accepts_every_current_finding_and_only_new_findings_fail_afterwards()
+    {
+        using var dir = new TempDir();
+        var baseline = System.IO.Path.Combine(dir.Path, "gapwatch-baseline.json");
+
+        var written = Run("compare", V1, V2, "--write-baseline", baseline);
+        written.Code.ShouldBe(ExitCodes.Success);
+        written.Err.ShouldContain("Baseline with 30 finding(s) written to");
+        written.Out.ShouldContain("SUPPRESSED (30)");
+
+        Run("compare", V1, V2, "--baseline", baseline).Code.ShouldBe(ExitCodes.Success);
+
+        // A baseline taken against v1 itself accepts nothing, so every change to v2 still fails.
+        var stale = System.IO.Path.Combine(dir.Path, "empty-baseline.json");
+        Run("compare", V1, V1, "--write-baseline", stale).Code.ShouldBe(ExitCodes.Success);
+        Run("compare", V1, V2, "--baseline", stale).Code.ShouldBe(ExitCodes.FindingsAtThreshold);
+    }
+
+    [Test]
+    public void Rewriting_a_baseline_keeps_its_justification_and_drops_entries_that_no_longer_match()
+    {
+        using var dir = new TempDir();
+        var baseline = dir.Write("b.json", """
+            { "version": 1, "justification": "Accepted for the 2.3 release (ADR-7).",
+              "findings": [ { "rule": "GW001", "operation": "GET /gone", "location": "operation" } ] }
+            """);
+
+        var (code, output, _) = Run("compare", V1, V1, "--baseline", baseline);
+        code.ShouldBe(ExitCodes.Success);
+        output.ShouldContain("baseline: GW001 GET /gone operation");
+
+        Run("compare", V1, V2, "--baseline", baseline, "--write-baseline", baseline).Code.ShouldBe(ExitCodes.Success);
+        var rewritten = File.ReadAllText(baseline);
+        rewritten.ShouldContain("Accepted for the 2.3 release (ADR-7).");
+        rewritten.ShouldNotContain("GET /gone");
+    }
+
+    [Test]
+    public void An_invalid_baseline_is_a_usage_error()
+    {
+        using var dir = new TempDir();
+        var baseline = dir.Write("b.json", """{ "version": 1, "findings": [] }""");
+
+        var (code, _, error) = Run("compare", V1, V2, "--baseline", baseline);
+
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("$.justification is missing or blank");
+    }
+
+    [Test]
     public void Rules_lists_every_rule_in_both_formats()
     {
         var console = Run("rules");
