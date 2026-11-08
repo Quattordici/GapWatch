@@ -132,25 +132,23 @@ public static class GapWatchCli
             ? LoadSources(basePath, headPath, baseRef)
             : LoadInputs(basePath, headPath, baseRef);
         var baseLabel = baseRef is null ? basePath : $"{baseRef}:{basePath}";
-        var result = new ContractComparer().Compare(baseContract, head);
-        result = ApiVersionAnalyzer.Apply(baseContract, head, result, configuration.Versioning);
-        result = (configuration.Policy with { Today = DateOnly.FromDateTime(DateTime.UtcNow) }).Apply(result);
-
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)
             : Baseline.Empty;
+        var check = CompatibilityCheck.Run(baseContract, head, configuration, accepted, DateOnly.FromDateTime(DateTime.UtcNow));
+        var result = check.Result;
         if (options.Values.TryGetValue("--write-baseline", out var newBaselinePath))
         {
             // Keep an edited justification: from the baseline in use, or from the file being replaced.
             var justification = baselinePath is not null ? accepted.Justification
                 : File.Exists(newBaselinePath) ? BaselineFile.Load(newBaselinePath).Justification
                 : BaselineFile.DefaultJustification;
-            accepted = Baseline.From(result.Findings, justification);
-            BaselineFile.Save(newBaselinePath, accepted);
-            error.WriteLine($"Baseline with {accepted.Entries.Count} finding(s) written to {newBaselinePath}.");
+            var written = Baseline.From(check.BeforeBaseline.Findings, justification);
+            BaselineFile.Save(newBaselinePath, written);
+            error.WriteLine($"Baseline with {written.Entries.Count} finding(s) written to {newBaselinePath}.");
+            result = written.Apply(check.BeforeBaseline);
         }
 
-        result = accepted.Apply(result);
         if (options.Values.TryGetValue("--source", out var sourceDirectory))
         {
             result = CodeMap.Load(sourceDirectory).Annotate(result);

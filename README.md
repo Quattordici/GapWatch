@@ -188,7 +188,7 @@ tests/
   GapWatch.Tests       TUnit + TUnit.Mocks + Shouldly. One test per rule and direction, reader tests, golden reports, CLI tests.
 ```
 
-Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That includes C# source: `CSharpContractReader` builds the same model from controllers, minimal APIs and DTOs, so it added no rules. Code mapping with `--source` happens after comparison and policy, on the findings, so it never influences a verdict.
+Every source format compiles into one normalized `ApiContract`; rules only ever see that model. That includes C# source: `CSharpContractReader` builds the same model from controllers, minimal APIs and DTOs, so it added no rules. `CompatibilityCheck.Run` in Core runs the check in its one correct order: compare, turn per-operation findings about API versions into version findings (GW060 to GW063), apply the configured policy, then the baseline. Code mapping with `--source` happens after that, on the findings, so it never influences a verdict.
 
 ## Running the tests
 

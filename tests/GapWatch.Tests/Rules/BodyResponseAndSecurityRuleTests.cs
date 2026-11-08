@@ -99,10 +99,12 @@ public sealed class BodyResponseAndSecurityRuleTests
         var before = Post("""{ "content": { "application/json;v=1.0": { "schema": { "type": "string" } }, "application/json;v=2.0": { "schema": { "type": "string" } } } }""");
         var after = Post("""{ "content": { "application/json;v=2.0": { "schema": { "type": "string" } } } }""");
 
-        var finding = TestSpec.Diff(before, after).Findings.ShouldHaveSingleItem();
+        // The comparison reports GW043; the full check then replaces it with GW060, because version 1.0 is gone.
+        var finding = TestSpec.CompareOnly(before, after).Findings.ShouldHaveSingleItem();
 
         finding.Rule.Id.ShouldBe("GW043");
         finding.Message.ShouldBe("Request media type 'application/json;v=1.0' is no longer accepted.");
+        TestSpec.Diff(before, after).RuleIds().ShouldBe("GW060");
     }
 
     // --- Responses -----------------------------------------------------------------------------------------------

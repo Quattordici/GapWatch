@@ -9,21 +9,6 @@ namespace GapWatch.Cli;
 /// <summary>The configuration file is missing, malformed or describes an invalid policy.</summary>
 public sealed class ConfigurationException(string message) : Exception(message);
 
-/// <summary>Everything <c>gapwatch.json</c> configures.</summary>
-/// <param name="Policy">Severity overrides, disabled rules and suppressions, applied after comparison.</param>
-/// <param name="Versioning">How API versions are recognized for GW060 to GW063.</param>
-public sealed record GapWatchConfiguration(CompatibilityPolicy Policy, VersioningOptions Versioning)
-{
-    /// <summary>
-    /// The configured failure threshold: <c>"breaking"</c>, <c>"warning"</c> or <c>"none"</c>, or null when the file does
-    /// not set one. The <c>--fail-on</c> option wins over it.
-    /// </summary>
-    public string? FailOn { get; init; }
-
-    /// <summary>No configuration file: the default policy and Asp.Versioning defaults.</summary>
-    public static GapWatchConfiguration Default { get; } = new(CompatibilityPolicy.Default, VersioningOptions.Default);
-}
-
 /// <summary>
 /// Reads <c>gapwatch.json</c> into a <see cref="CompatibilityPolicy"/>. The format is deliberately small and strict:
 /// unknown properties are errors so that a typo never silently disables a check.
