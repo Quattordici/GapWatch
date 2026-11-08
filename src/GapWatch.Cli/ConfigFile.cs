@@ -1,4 +1,6 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using GapWatch.Core.Comparison;
 using GapWatch.Core.Findings;
 using GapWatch.Core.Policy;
 
@@ -6,6 +8,15 @@ namespace GapWatch.Cli;
 
 /// <summary>The configuration file is missing, malformed or describes an invalid policy.</summary>
 public sealed class ConfigurationException(string message) : Exception(message);
+
+/// <summary>Everything <c>gapwatch.json</c> configures.</summary>
+/// <param name="Policy">Severity overrides, disabled rules and suppressions, applied after comparison.</param>
+/// <param name="Versioning">How API versions are recognized for GW060 to GW063.</param>
+public sealed record GapWatchConfiguration(CompatibilityPolicy Policy, VersioningOptions Versioning)
+{
+    /// <summary>No configuration file: the default policy and Asp.Versioning defaults.</summary>
+    public static GapWatchConfiguration Default { get; } = new(CompatibilityPolicy.Default, VersioningOptions.Default);
+}
 
 /// <summary>
 /// Reads <c>gapwatch.json</c> into a <see cref="CompatibilityPolicy"/>. The format is deliberately small and strict:
@@ -18,9 +29,11 @@ public sealed class ConfigurationException(string message) : Exception(message);
 ///   "suppressions": [
 ///     { "rule": "GW025", "operation": "GET /pets", "location": "response 200 application/json: $[].nickname",
 ///       "justification": "Never populated; removal agreed with all consumers." }
-///   ]
+///   ],
+///   "versioning": { "pathSegment": "^v\\d+(\\.\\d+)?$", "parameters": ["api-version"], "mediaTypeParameter": "v" }
 /// }
 /// </code>
+/// <c>"versioning": false</c> turns version detection off.
 /// Comments and trailing commas are allowed.
 /// </remarks>
 public static class ConfigFile
@@ -33,7 +46,15 @@ public static class ConfigFile
 
     /// <summary>Loads and validates a configuration file from disk.</summary>
     /// <exception cref="ConfigurationException">The file is missing or invalid.</exception>
-    public static CompatibilityPolicy Load(string path)
+    public static CompatibilityPolicy Load(string path) => LoadConfiguration(path).Policy;
+
+    /// <summary>Parses and validates configuration JSON into a policy. <paramref name="source"/> labels error messages.</summary>
+    /// <exception cref="ConfigurationException">The JSON is malformed or describes an invalid policy.</exception>
+    public static CompatibilityPolicy Parse(string json, string source) => ParseConfiguration(json, source).Policy;
+
+    /// <summary>Loads and validates a configuration file from disk, including the <c>versioning</c> section.</summary>
+    /// <exception cref="ConfigurationException">The file is missing or invalid.</exception>
+    public static GapWatchConfiguration LoadConfiguration(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -44,7 +65,7 @@ public static class ConfigFile
 
         try
         {
-            return Parse(File.ReadAllText(path), path);
+            return ParseConfiguration(File.ReadAllText(path), path);
         }
         catch (IOException ex)
         {
@@ -53,8 +74,8 @@ public static class ConfigFile
     }
 
     /// <summary>Parses and validates configuration JSON. <paramref name="source"/> labels error messages.</summary>
-    /// <exception cref="ConfigurationException">The JSON is malformed or describes an invalid policy.</exception>
-    public static CompatibilityPolicy Parse(string json, string source)
+    /// <exception cref="ConfigurationException">The JSON is malformed or describes an invalid configuration.</exception>
+    public static GapWatchConfiguration ParseConfiguration(string json, string source)
     {
         ArgumentNullException.ThrowIfNull(json);
         ArgumentNullException.ThrowIfNull(source);
@@ -77,6 +98,7 @@ public static class ConfigFile
             var overrides = new Dictionary<string, Severity>(StringComparer.Ordinal);
             var disabled = new HashSet<string>(StringComparer.Ordinal);
             var suppressions = new List<Suppression>();
+            var versioning = VersioningOptions.Default;
 
             foreach (var property in root.EnumerateObject())
             {
@@ -88,16 +110,19 @@ public static class ConfigFile
                     case "suppressions":
                         ReadSuppressions(property.Value, source, suppressions);
                         break;
+                    case "versioning":
+                        versioning = ReadVersioning(property.Value, source);
+                        break;
                     default:
                         throw new ConfigurationException(
-                            $"{source}: unknown property '{property.Name}'. Expected 'rules' or 'suppressions'.");
+                            $"{source}: unknown property '{property.Name}'. Expected 'rules', 'suppressions' or 'versioning'.");
                 }
             }
 
             var policy = new CompatibilityPolicy(overrides, disabled, suppressions);
             var problems = policy.Validate();
             return problems.Count == 0
-                ? policy
+                ? new GapWatchConfiguration(policy, versioning)
                 : throw new ConfigurationException($"{source}: {string.Join(" ", problems)}");
         }
     }
@@ -131,6 +156,62 @@ public static class ConfigFile
                         $"{source}: {path} has value '{rule.Value.GetString()}'. Use 'breaking', 'warning', 'info' or 'off'.");
             }
         }
+    }
+
+    /// <summary>
+    /// <c>false</c>, or an object whose keys are all optional. A key set to <c>null</c> turns that source off; a missing
+    /// key keeps the default.
+    /// </summary>
+    private static VersioningOptions ReadVersioning(JsonElement element, string source)
+    {
+        if (element.ValueKind == JsonValueKind.False)
+        {
+            return VersioningOptions.Disabled;
+        }
+
+        Expect(element, JsonValueKind.Object, source, "$.versioning");
+
+        var options = VersioningOptions.Default;
+        foreach (var property in element.EnumerateObject())
+        {
+            var path = $"$.versioning.{property.Name}";
+            var value = property.Value;
+            switch (property.Name)
+            {
+                case "pathSegment":
+                    options = options with { PathSegment = value.ValueKind == JsonValueKind.Null ? null : PathPattern(ReadString(value, source, path), source, path) };
+                    break;
+                case "parameters":
+                    options = options with { Parameters = value.ValueKind == JsonValueKind.Null ? [] : ReadStrings(value, source, path) };
+                    break;
+                case "mediaTypeParameter":
+                    options = options with { MediaTypeParameter = value.ValueKind == JsonValueKind.Null ? null : ReadString(value, source, path) };
+                    break;
+                default:
+                    throw new ConfigurationException(
+                        $"{source}: unknown property '{path}'. Expected 'pathSegment', 'parameters' or 'mediaTypeParameter'.");
+            }
+        }
+
+        return options;
+    }
+
+    private static Regex PathPattern(string pattern, string source, string path)
+    {
+        try
+        {
+            return VersioningOptions.PathPattern(pattern);
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ConfigurationException($"{source}: {path} is not a valid regular expression: {ex.Message}");
+        }
+    }
+
+    private static List<string> ReadStrings(JsonElement array, string source, string path)
+    {
+        Expect(array, JsonValueKind.Array, source, path);
+        return array.EnumerateArray().Select((item, i) => ReadString(item, source, $"{path}[{i}]")).ToList();
     }
 
     private static void ReadSuppressions(JsonElement array, string source, List<Suppression> suppressions)

@@ -60,6 +60,21 @@ public sealed record Finding(RuleDescriptor Rule, string Operation, string Locat
     /// property), when a source map was supplied and found it. Null otherwise.
     /// </summary>
     public CodeLocation? Code { get; init; }
+
+    /// <summary>
+    /// The API version the finding is about, for the version rules (GW060 to GW063). Findings with the same rule,
+    /// version and message describe one decision seen through every operation of that version.
+    /// </summary>
+    public string? ApiVersion { get; init; }
+
+    /// <summary>
+    /// The head document <see cref="Position"/> refers to, when several head documents were compared (multi-document
+    /// mode). Null means the single head document of the comparison.
+    /// </summary>
+    public string? Document { get; init; }
+
+    /// <summary>What the members of a <see cref="FindingGroup"/> share: the component schema or the API version.</summary>
+    public string? GroupLabel => Origin?.Display ?? (ApiVersion is null ? null : $"API version {ApiVersion}");
 }
 
 /// <summary>A place in a source file: the path as it was given to GapWatch, and a 1-based line and column.</summary>
@@ -123,7 +138,7 @@ public static class FindingOrder
 
 /// <summary>
 /// One change as a reader should see it: a single finding, or the same finding repeated across every operation that
-/// uses a shared component schema.
+/// uses a shared component schema or belongs to one API version.
 /// </summary>
 /// <param name="Members">The findings in this group, in report order. Never empty.</param>
 public sealed record FindingGroup(IReadOnlyList<Finding> Members)
@@ -135,8 +150,8 @@ public sealed record FindingGroup(IReadOnlyList<Finding> Members)
     public bool IsShared => Members.Count > 1;
 
     /// <summary>
-    /// Groups findings that share rule, effective severity, message and <see cref="Finding.Origin"/>. Findings without
-    /// an origin stay on their own. Groups keep the position of their first member, so the result follows
+    /// Groups findings that share rule, effective severity, message and <see cref="Finding.Origin"/> or
+    /// <see cref="Finding.ApiVersion"/>. Findings with neither stay on their own. Groups keep the position of their first member, so the result follows
     /// <see cref="FindingOrder"/>; counts and exit codes are unaffected because they are based on findings.
     /// </summary>
     public static IReadOnlyList<FindingGroup> Group(IEnumerable<Finding> findings)
@@ -144,17 +159,17 @@ public sealed record FindingGroup(IReadOnlyList<Finding> Members)
         ArgumentNullException.ThrowIfNull(findings);
 
         var groups = new List<List<Finding>>();
-        var byKey = new Dictionary<(string Rule, Severity Severity, string Message, SchemaOrigin Origin), List<Finding>>();
+        var byKey = new Dictionary<(string Rule, Severity Severity, string Message, SchemaOrigin? Origin, string? ApiVersion), List<Finding>>();
 
         foreach (var finding in findings)
         {
-            if (finding.Origin is null)
+            if (finding.Origin is null && finding.ApiVersion is null)
             {
                 groups.Add([finding]);
                 continue;
             }
 
-            var key = (finding.Rule.Id, finding.Severity, finding.Message, finding.Origin);
+            var key = (finding.Rule.Id, finding.Severity, finding.Message, finding.Origin, finding.ApiVersion);
             if (!byKey.TryGetValue(key, out var members))
             {
                 members = [];

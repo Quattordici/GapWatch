@@ -137,4 +137,24 @@ public sealed class FindingGroupTests
         console.ShouldContain("          - GET /pets/{id}  response 200 application/json: $.name\n");
         markdown.ShouldContain("| GW029 | `GET /pets`<br>`GET /pets/{id}`<br>`POST /pets` | schema `Pet` `$.name` (response, 3 operations)<br>line ");
     }
+
+    [Test]
+    public void Console_and_markdown_reports_show_one_entry_per_api_version()
+    {
+        const string Get = """{ "get": { "responses": { "204": { "description": "d" } } } }""";
+        var before = TestSpec.Parse(TestSpec.Document($$"""{ "/v1/pets": {{Get}}, "/v1/owners": {{Get}}, "/v2/pets": {{Get}} }"""));
+        var after = TestSpec.Parse(TestSpec.Document($$"""{ "/v2/pets": {{Get}} }"""));
+        var result = GapWatch.Core.Comparison.ApiVersionAnalyzer.Apply(
+            before, after, new GapWatch.Core.Comparison.ContractComparer().Compare(before, after), GapWatch.Core.Comparison.VersioningOptions.Default);
+        var context = new ReportContext("v1.json", "v2.json");
+
+        var console = new ConsoleReportRenderer().Render(result, context);
+        var markdown = new MarkdownReportRenderer().Render(result, context);
+
+        console.ShouldContain(
+            "BREAKING (2)\n  [GW060] API version v1, affects 2 operations\n"
+            + "          API version 'v1' was removed without being deprecated first (2 operations).\n"
+            + "          - GET /v1/owners\n          - GET /v1/pets\n");
+        markdown.ShouldContain("| GW060 | `GET /v1/owners`<br>`GET /v1/pets` | API version `v1` (2 operations) | ");
+    }
 }

@@ -109,7 +109,7 @@ public sealed class JUnitReportRenderer : IReportRenderer
         var text = $"{finding.Operation} {finding.Location}: {finding.Message}";
         if (finding.Position is { } position)
         {
-            text += $" (at {context.HeadLabel}:{position})";
+            text += $" (at {finding.Document ?? context.HeadLabel}:{position})";
         }
 
         return finding.Code is { } code ? $"{text} (code at {code})" : text;

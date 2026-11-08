@@ -23,7 +23,7 @@ Pinning matters: rule ids are stable, but a newer GapWatch can add rules, so upg
 
 ## 2. Get the base contract
 
-GapWatch compares two files; it never builds or fetches anything itself. Pick one way to obtain the **base** (target branch) document:
+GapWatch compares two files (or two folders of version documents); it never builds or fetches anything itself. Pick one way to obtain the **base** (target branch) document:
 
 | Option | How | Trade-off |
 |---|---|---|
@@ -38,6 +38,8 @@ Things that break this step in CI:
 - **Missing base.** When a pull request adds the API for the first time there is no base file. Skip the step in that case rather than comparing against an empty file.
 
 The **head** document is the spec generated (or committed) in the pull request build.
+
+With `Asp.Versioning` there is usually one document per version (`v1.json`, `v2.json`). Put the base documents in one folder and the head documents in another and pass the two folders; GapWatch pairs them by `info.version` and reports a document that disappeared as a removed API version (see [API versions](../README.md#api-versions)). With a committed spec, `git archive origin/main api/ | tar -x -C base` extracts the whole base folder in one step.
 
 ## 3. Decide what fails the build
 

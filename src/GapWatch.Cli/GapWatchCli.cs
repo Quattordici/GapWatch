@@ -47,7 +47,8 @@ public static class GapWatchCli
           --write-baseline <file>         Write every current finding to a baseline file, then report with it.
 
         Inputs are OpenAPI 3.x documents in JSON or YAML. <base> is what consumers rely on today,
-        <head> is the proposed change.
+        <head> is the proposed change. With one document per API version, pass two folders: documents
+        pair by info.version (or by file name), and a document on one side only is a removed or added version.
 
         Exit codes:
           0  no finding at or above the --fail-on threshold
@@ -112,16 +113,17 @@ public static class GapWatchCli
         var format = options.Format();
         var failOn = options.FailOn();
 
-        var policy = options.Values.TryGetValue("--config", out var configPath)
-            ? ConfigFile.Load(configPath)
-            : CompatibilityPolicy.Default;
+        var configuration = options.Values.TryGetValue("--config", out var configPath)
+            ? ConfigFile.LoadConfiguration(configPath)
+            : GapWatchConfiguration.Default;
 
         var basePath = options.Positional[0];
         var headPath = options.Positional[1];
 
-        var baseContract = ContractLoader.Load(basePath);
-        var head = ContractLoader.Load(headPath);
-        var result = policy.Apply(new ContractComparer().Compare(baseContract, head));
+        var (baseContract, head) = LoadInputs(basePath, headPath);
+        var result = new ContractComparer().Compare(baseContract, head);
+        result = ApiVersionAnalyzer.Apply(baseContract, head, result, configuration.Versioning);
+        result = configuration.Policy.Apply(result);
 
         var accepted = options.Values.TryGetValue("--baseline", out var baselinePath)
             ? BaselineFile.Load(baselinePath)
@@ -167,6 +169,21 @@ public static class GapWatchCli
         return failOn is { } threshold && result.HasAtLeast(threshold)
             ? ExitCodes.FindingsAtThreshold
             : ExitCodes.Success;
+    }
+
+    /// <summary>Two files, or two folders with one document per API version (multi-document mode).</summary>
+    private static (Core.Model.ApiContract Base, Core.Model.ApiContract Head) LoadInputs(string basePath, string headPath)
+    {
+        var baseIsFolder = Directory.Exists(basePath);
+        var headIsFolder = Directory.Exists(headPath);
+        if (baseIsFolder != headIsFolder)
+        {
+            throw new UsageException("compare needs two files, or two folders with one document per API version, not one of each.");
+        }
+
+        return baseIsFolder
+            ? VersionedDocuments.Combine(ContractLoader.LoadFolder(basePath), ContractLoader.LoadFolder(headPath))
+            : (ContractLoader.Load(basePath), ContractLoader.Load(headPath));
     }
 
     private static int Rules(string[] args, TextWriter output, TextWriter error)

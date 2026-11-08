@@ -135,7 +135,14 @@ public sealed class CodeMap
             return null;
         }
 
-        var key = RouteTemplate.Key(operation[..separator], operation[(separator + 1)..]);
+        // In multi-document mode the operation ends with its API version, e.g. "GET /pets [2.0]".
+        var path = operation[(separator + 1)..];
+        if (path.EndsWith(']') && path.LastIndexOf(" [", StringComparison.Ordinal) is var version and > 0)
+        {
+            path = path[..version];
+        }
+
+        var key = RouteTemplate.Key(operation[..separator], path);
         return _endpoints.TryGetValue(key, out var matches) && matches.Count == 1 ? matches[0] : null;
     }
 
