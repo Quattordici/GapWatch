@@ -73,12 +73,36 @@ public sealed class BodyResponseAndSecurityRuleTests
     }
 
     [Test]
-    public void Media_type_parameters_and_case_are_ignored()
+    public void Charset_case_spacing_quotes_and_parameter_order_are_ignored()
     {
-        var before = Post("""{ "content": { "application/json; charset=utf-8": { "schema": { "type": "string" } } } }""");
-        var after = Post("""{ "content": { "Application/JSON": { "schema": { "type": "string" } } } }""");
+        var before = Post("""{ "content": { "application/json; charset=utf-8; v=\"2.0\"; odata.metadata=minimal": { "schema": { "type": "string" } } } }""");
+        var after = Post("""{ "content": { "Application/JSON;odata.metadata=minimal;V=2.0": { "schema": { "type": "string" } } } }""");
 
         TestSpec.Diff(before, after).Findings.ShouldBeEmpty();
+    }
+
+    [Test]
+    public void Media_types_that_differ_in_a_version_parameter_are_compared_separately()
+    {
+        // Asp.Versioning media type versioning: one entry per version. Merging them would leave v=2.0 uncompared.
+        var before = Post("""{ "content": { "application/json;v=1.0": { "schema": { "type": "string" } }, "application/json;v=2.0": { "schema": { "type": "string" } } } }""");
+        var after = Post("""{ "content": { "application/json;v=1.0": { "schema": { "type": "string" } }, "application/json;v=2.0": { "schema": { "type": "integer" } } } }""");
+
+        var findings = TestSpec.Diff(before, after).Findings;
+
+        findings.ShouldHaveSingleItem().Location.ShouldBe("request body (application/json;v=2.0)");
+    }
+
+    [Test]
+    public void Dropping_a_versioned_media_type_is_reported_as_a_removed_media_type_GW043()
+    {
+        var before = Post("""{ "content": { "application/json;v=1.0": { "schema": { "type": "string" } }, "application/json;v=2.0": { "schema": { "type": "string" } } } }""");
+        var after = Post("""{ "content": { "application/json;v=2.0": { "schema": { "type": "string" } } } }""");
+
+        var finding = TestSpec.Diff(before, after).Findings.ShouldHaveSingleItem();
+
+        finding.Rule.Id.ShouldBe("GW043");
+        finding.Message.ShouldBe("Request media type 'application/json;v=1.0' is no longer accepted.");
     }
 
     // --- Responses -----------------------------------------------------------------------------------------------
