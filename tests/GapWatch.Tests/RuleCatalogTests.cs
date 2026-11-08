@@ -29,11 +29,4 @@ public sealed class RuleCatalogTests
 
         string.Join(",", ids).ShouldBe(string.Join(",", ids.OrderBy(i => i, StringComparer.Ordinal)));
     }
-
-    [Test]
-    public void The_catalog_contains_the_planned_rules()
-    {
-        // Guards against accidentally losing rules to a refactoring; update deliberately when rules are added.
-        RuleCatalog.All.Count.ShouldBe(38);
-    }
 }

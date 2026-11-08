@@ -2,7 +2,7 @@
 
 GapWatch finds **breaking changes between two versions of an HTTP API contract** before they reach your consumers. It compares a baseline OpenAPI document with a proposed one and explains every consumer-visible difference, with a rule id, a precise location and a severity.
 
-> **Status: v0.1, pre-release.** The core engine, rule set, reports and CLI work and are tested. See [Limitations](#limitations-in-v01).
+> **Status: v1.0.** Rule ids, exit codes, options, configuration and report formats are stable under semantic versioning; see the [compatibility policy](docs/compatibility.md). See also [Limitations](#limitations).
 
 ## Why another API diff tool
 
@@ -195,7 +195,7 @@ Every source format compiles into one normalized `ApiContract`; rules only ever 
 
 To regenerate the golden reports after an intentional output change, run the tests with `GAPWATCH_UPDATE_GOLDEN=1` and review the diff.
 
-## Limitations in v0.1
+## Limitations
 
 - **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
@@ -208,12 +208,13 @@ To regenerate the golden reports after an intentional output change, run the tes
 
 | Version | Scope |
 |---|---|
-| v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
+| v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (done) |
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
 | v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
 | v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules and folder mode (done) |
 | v0.5 | Value-constraint rules GW032 to GW037 (done), `failOn` and suppression expiry in `gapwatch.json` (done), `--base-ref` (done) |
-| v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
+| v1.0 | Stable rule ids and a [compatibility policy](docs/compatibility.md) for the tool itself (this release) |
+| v1.x | Custom rule plugins |
 
 ## License
 
