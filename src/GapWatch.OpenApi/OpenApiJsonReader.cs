@@ -55,6 +55,8 @@ public sealed class OpenApiJsonReader : IContractReader
         private static readonly HashSet<string> SchemaKeywords = new(StringComparer.Ordinal)
         {
             "type", "nullable", "properties", "items", "enum", "const", "allOf", "oneOf", "anyOf", "format", "required",
+            "minLength", "maxLength", "minItems", "maxItems", "minimum", "maximum", "exclusiveMinimum", "exclusiveMaximum",
+            "pattern", "additionalProperties", "discriminator",
         };
 
         private readonly Dictionary<string, SchemaContract> _cache = new(StringComparer.Ordinal);
@@ -422,12 +424,22 @@ public sealed class OpenApiJsonReader : IContractReader
                 Properties = properties,
                 Items = items,
                 Variants = variants,
+                MinLength = GetBound(element, "minLength"),
+                MaxLength = GetBound(element, "maxLength"),
+                MinItems = GetBound(element, "minItems"),
+                MaxItems = GetBound(element, "maxItems"),
+                Minimum = GetNumericBound(element, "minimum", "exclusiveMinimum", tighter: (a, b) => a.IsTighterMinimumThan(b)),
+                Maximum = GetNumericBound(element, "maximum", "exclusiveMaximum", tighter: (a, b) => a.IsTighterMaximumThan(b)),
+                Pattern = GetString(element, "pattern"),
+                AdditionalPropertiesAllowed = !(element.TryGetProperty("additionalProperties", out var additional)
+                                                && additional.ValueKind == JsonValueKind.False),
+                Discriminator = ReadDiscriminator(element),
                 Position = positions[pointer],
             };
 
             // A lone alternative with nothing else around it is just that schema (possibly nullable).
             if (variants.Count == 1 && types.Count == 0 && properties.Count == 0 && items is null && own.EnumValues.Count == 0
-                && !element.TryGetProperty("allOf", out _))
+                && !element.TryGetProperty("allOf", out _) && !HasConstraints(own))
             {
                 return variants[0] with { Nullable = variants[0].Nullable || nullable };
             }
@@ -514,9 +526,76 @@ public sealed class OpenApiJsonReader : IContractReader
                 Properties = properties,
                 Items = a.Items is not null && b.Items is not null ? Merge(a.Items, b.Items) : a.Items ?? b.Items,
                 Variants = [.. a.Variants, .. b.Variants],
+                // Every part of an allOf must hold, so the tighter bound wins.
+                MinLength = Tighter(a.MinLength, b.MinLength, (x, y) => x.IsTighterMinimumThan(y)),
+                MaxLength = Tighter(a.MaxLength, b.MaxLength, (x, y) => x.IsTighterMaximumThan(y)),
+                MinItems = Tighter(a.MinItems, b.MinItems, (x, y) => x.IsTighterMinimumThan(y)),
+                MaxItems = Tighter(a.MaxItems, b.MaxItems, (x, y) => x.IsTighterMaximumThan(y)),
+                Minimum = Tighter(a.Minimum, b.Minimum, (x, y) => x.IsTighterMinimumThan(y)),
+                Maximum = Tighter(a.Maximum, b.Maximum, (x, y) => x.IsTighterMaximumThan(y)),
+                Pattern = a.Pattern ?? b.Pattern,
+                AdditionalPropertiesAllowed = a.AdditionalPropertiesAllowed && b.AdditionalPropertiesAllowed,
+                Discriminator = a.Discriminator ?? b.Discriminator,
                 ReferenceName = a.ReferenceName ?? b.ReferenceName,
                 Position = a.Position ?? b.Position,
             };
+        }
+
+        private static bool HasConstraints(SchemaContract schema) =>
+            schema.MinLength is not null || schema.MaxLength is not null || schema.MinItems is not null || schema.MaxItems is not null
+            || schema.Minimum is not null || schema.Maximum is not null || schema.Pattern is not null
+            || !schema.AdditionalPropertiesAllowed || schema.Discriminator is not null;
+
+        private static Bound? Tighter(Bound? a, Bound? b, Func<Bound, Bound, bool> tighter) =>
+            a is null ? b : b is null ? a : tighter(b, a) ? b : a;
+
+        private static Bound? GetBound(JsonElement element, string keyword) =>
+            element.TryGetProperty(keyword, out var value) && value.ValueKind == JsonValueKind.Number && value.TryGetDouble(out var number)
+                ? new Bound(number)
+                : null;
+
+        /// <summary>
+        /// <c>minimum</c> together with <c>exclusiveMinimum</c>: in OpenAPI 3.0 the latter is a boolean that makes
+        /// <c>minimum</c> exclusive; in 3.1 (JSON Schema 2020-12) it is a number of its own, and the tighter of the two
+        /// holds. Both forms give the same <see cref="Bound"/>, so moving between them is not a change.
+        /// </summary>
+        private static Bound? GetNumericBound(JsonElement element, string inclusive, string exclusive, Func<Bound, Bound, bool> tighter)
+        {
+            var bound = GetBound(element, inclusive);
+            if (!element.TryGetProperty(exclusive, out var flag))
+            {
+                return bound;
+            }
+
+            if (flag.ValueKind == JsonValueKind.True)
+            {
+                return bound is null ? null : bound with { Exclusive = true };
+            }
+
+            return flag.ValueKind == JsonValueKind.Number && flag.TryGetDouble(out var number)
+                ? Tighter(bound, new Bound(number, Exclusive: true), tighter)
+                : bound;
+        }
+
+        /// <summary>Mapping targets are reduced to the schema name, so <c>#/components/schemas/Dog</c> and <c>Dog</c> compare equal.</summary>
+        private static Discriminator? ReadDiscriminator(JsonElement element)
+        {
+            if (!element.TryGetProperty("discriminator", out var discriminator) || GetString(discriminator, "propertyName") is not { } name)
+            {
+                return null;
+            }
+
+            var mapping = new SortedDictionary<string, string>(StringComparer.Ordinal);
+            if (discriminator.TryGetProperty("mapping", out var entries) && entries.ValueKind == JsonValueKind.Object)
+            {
+                foreach (var entry in entries.EnumerateObject().Where(e => e.Value.ValueKind == JsonValueKind.String))
+                {
+                    var target = entry.Value.GetString()!;
+                    mapping[entry.Name] = target[(target.LastIndexOf('/') + 1)..];
+                }
+            }
+
+            return new Discriminator(name, mapping);
         }
 
         private static List<string> ReadEnum(JsonElement element)

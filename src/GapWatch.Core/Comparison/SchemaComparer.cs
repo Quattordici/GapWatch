@@ -89,6 +89,10 @@ internal static class SchemaComparer
         CompareFormat(baseline, head, direction, path, report);
         CompareNullability(baseline, head, direction, path, report);
         CompareEnums(baseline, head, direction, path, report);
+        CompareBounds(baseline, head, direction, path, report);
+        ComparePattern(baseline, head, direction, path, report);
+        CompareAdditionalProperties(baseline, head, direction, path, report);
+        CompareDiscriminator(baseline, head, direction, path, report);
         CompareProperties(baseline, head, direction, path, here, report, sink, scope);
 
         if (baseline.Items is not null && head.Items is not null)
@@ -243,6 +247,148 @@ internal static class SchemaComparer
             report(RuleCatalog.EnumValueAdded, path, $"New enum value(s) can be returned: {List(added)}.");
         }
     }
+
+    /// <summary>
+    /// GW032 for a tighter bound in a request, GW033 for a looser one in a response. The opposite direction is safe:
+    /// a server may accept more than before, and return less.
+    /// </summary>
+    private static void CompareBounds(
+        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+    {
+        CompareBound("minLength", baseline.MinLength, head.MinLength, isMinimum: true, direction, path, report);
+        CompareBound("maxLength", baseline.MaxLength, head.MaxLength, isMinimum: false, direction, path, report);
+        CompareBound("minItems", baseline.MinItems, head.MinItems, isMinimum: true, direction, path, report);
+        CompareBound("maxItems", baseline.MaxItems, head.MaxItems, isMinimum: false, direction, path, report);
+        CompareBound("minimum", baseline.Minimum, head.Minimum, isMinimum: true, direction, path, report);
+        CompareBound("maximum", baseline.Maximum, head.Maximum, isMinimum: false, direction, path, report);
+    }
+
+    private static void CompareBound(
+        string keyword, Bound? before, Bound? after, bool isMinimum, Direction direction, string path, ReportFinding report)
+    {
+        if (before == after)
+        {
+            return;
+        }
+
+        // Adding a bound narrows, removing one widens; otherwise compare the limits.
+        var narrowed = before is null
+            || (after is not null && (isMinimum ? after.IsTighterMinimumThan(before) : after.IsTighterMaximumThan(before)));
+        var widened = after is null
+            || (before is not null && (isMinimum ? before.IsTighterMinimumThan(after) : before.IsTighterMaximumThan(after)));
+
+        if (direction == Direction.Request && narrowed)
+        {
+            report(
+                RuleCatalog.ValueRangeNarrowed,
+                path,
+                before is null
+                    ? $"A {keyword} of {after} was added; values outside it are no longer accepted."
+                    : $"{Capitalize(keyword)} changed from {before} to {after}; values between them are no longer accepted.");
+        }
+        else if (direction == Direction.Response && widened)
+        {
+            report(
+                RuleCatalog.ValueRangeWidened,
+                path,
+                after is null
+                    ? $"The {keyword} of {before} was removed; any value can now be returned."
+                    : $"{Capitalize(keyword)} changed from {before} to {after}; values between them can now be returned.");
+        }
+    }
+
+    private static void ComparePattern(
+        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+    {
+        if (string.Equals(baseline.Pattern, head.Pattern, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        if (baseline.Pattern is null)
+        {
+            if (direction == Direction.Request)
+            {
+                report(RuleCatalog.PatternAdded, path, $"A pattern '{head.Pattern}' was added; values that do not match it are no longer accepted.");
+            }
+
+            return;
+        }
+
+        if (head.Pattern is null)
+        {
+            if (direction == Direction.Response)
+            {
+                report(RuleCatalog.PatternChanged, path, $"The pattern '{baseline.Pattern}' was removed; any string can now be returned.");
+            }
+
+            return;
+        }
+
+        report(
+            RuleCatalog.PatternChanged,
+            path,
+            direction == Direction.Request
+                ? $"Pattern changed from '{baseline.Pattern}' to '{head.Pattern}'; check that every value the old one accepted still matches."
+                : $"Pattern changed from '{baseline.Pattern}' to '{head.Pattern}'; check that consumers accept every value the new one allows.");
+    }
+
+    private static void CompareAdditionalProperties(
+        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+    {
+        if (direction == Direction.Request && baseline.AdditionalPropertiesAllowed && !head.AdditionalPropertiesAllowed)
+        {
+            report(
+                RuleCatalog.AdditionalPropertiesRestricted,
+                path,
+                "additionalProperties became false; requests with properties that are not declared are rejected where the contract is enforced.");
+        }
+    }
+
+    /// <summary>
+    /// A renamed discriminator property or a value that selects another schema breaks both directions, because clients
+    /// pick the subtype by it either way. A removed value only breaks requests; a value added to a response is GW031.
+    /// </summary>
+    private static void CompareDiscriminator(
+        SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
+    {
+        if (baseline.Discriminator is not { } before || head.Discriminator is not { } after)
+        {
+            return;
+        }
+
+        if (!string.Equals(before.PropertyName, after.PropertyName, StringComparison.Ordinal))
+        {
+            report(
+                RuleCatalog.DiscriminatorChanged,
+                path,
+                $"The discriminator property changed from '{before.PropertyName}' to '{after.PropertyName}'.");
+            return;
+        }
+
+        foreach (var (value, schema) in before.Mapping.OrderBy(m => m.Key, StringComparer.Ordinal))
+        {
+            if (!after.Mapping.TryGetValue(value, out var now))
+            {
+                if (direction == Direction.Request)
+                {
+                    report(
+                        RuleCatalog.DiscriminatorChanged,
+                        path,
+                        $"Discriminator value '{value}' ({schema}) is no longer accepted.");
+                }
+            }
+            else if (!string.Equals(schema, now, StringComparison.Ordinal))
+            {
+                report(
+                    RuleCatalog.DiscriminatorChanged,
+                    path,
+                    $"Discriminator value '{value}' now selects '{now}' instead of '{schema}'.");
+            }
+        }
+    }
+
+    private static string Capitalize(string keyword) => char.ToUpperInvariant(keyword[0]) + keyword[1..];
 
     private static void CompareProperties(
         SchemaContract baseline,
