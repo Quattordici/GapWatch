@@ -256,13 +256,36 @@ internal static class SchemaComparer
     private static void CompareBounds(
         SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
     {
-        CompareBound("minLength", baseline.MinLength, head.MinLength, isMinimum: true, direction, path, report);
-        CompareBound("maxLength", baseline.MaxLength, head.MaxLength, isMinimum: false, direction, path, report);
-        CompareBound("minItems", baseline.MinItems, head.MinItems, isMinimum: true, direction, path, report);
-        CompareBound("maxItems", baseline.MaxItems, head.MaxItems, isMinimum: false, direction, path, report);
-        CompareBound("minimum", baseline.Minimum, head.Minimum, isMinimum: true, direction, path, report);
-        CompareBound("maximum", baseline.Maximum, head.Maximum, isMinimum: false, direction, path, report);
+        // A bound only constrains values of its own type (JSON Schema 2020-12, Core 7.6.1), so it matters only where
+        // the side that sends the value can hold that type: the base for a request, the head for a response.
+        var sender = direction == Direction.Request ? baseline : head;
+        if (Holds(sender, "string"))
+        {
+            CompareBound("minLength", baseline.MinLength, head.MinLength, isMinimum: true, direction, path, report);
+            CompareBound("maxLength", baseline.MaxLength, head.MaxLength, isMinimum: false, direction, path, report);
+        }
+
+        if (Holds(sender, "array"))
+        {
+            CompareBound("minItems", baseline.MinItems, head.MinItems, isMinimum: true, direction, path, report);
+            CompareBound("maxItems", baseline.MaxItems, head.MaxItems, isMinimum: false, direction, path, report);
+        }
+
+        if (Holds(sender, "number"))
+        {
+            CompareBound("minimum", baseline.Minimum, head.Minimum, isMinimum: true, direction, path, report);
+            CompareBound("maximum", baseline.Maximum, head.Maximum, isMinimum: false, direction, path, report);
+        }
     }
+
+    /// <summary>
+    /// Whether a value of the schema can be of <paramref name="type"/> (<c>number</c> includes <c>integer</c>). A
+    /// schema without a type can hold anything.
+    /// </summary>
+    private static bool Holds(SchemaContract schema, string type) =>
+        schema.Types.Count == 0
+        || schema.Types.Contains(type, StringComparer.Ordinal)
+        || (type == "number" && schema.Types.Contains("integer", StringComparer.Ordinal));
 
     private static void CompareBound(
         string keyword, Bound? before, Bound? after, bool isMinimum, Direction direction, string path, ReportFinding report)
@@ -301,7 +324,9 @@ internal static class SchemaComparer
     private static void ComparePattern(
         SchemaContract baseline, SchemaContract head, Direction direction, string path, ReportFinding report)
     {
-        if (string.Equals(baseline.Pattern, head.Pattern, StringComparison.Ordinal))
+        // .NET 10 puts a numeric pattern on every integer; it constrains strings only (see CompareBounds).
+        if (string.Equals(baseline.Pattern, head.Pattern, StringComparison.Ordinal)
+            || !Holds(direction == Direction.Request ? baseline : head, "string"))
         {
             return;
         }
