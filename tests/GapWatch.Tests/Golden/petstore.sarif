@@ -651,6 +651,98 @@
                   "api-compatibility"
                 ]
               }
+            },
+            {
+              "id": "GW060",
+              "name": "ApiVersionRemoved",
+              "shortDescription": {
+                "text": "ApiVersionRemoved"
+              },
+              "fullDescription": {
+                "text": "Every operation of an API version is gone, and the version was not deprecated first. Clients still on it now fail. Replaces GW001, GW023 and GW043 for those operations."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Every operation of an API version is gone, and the version was not deprecated first. Clients still on it now fail. Replaces GW001, GW023 and GW043 for those operations. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW060 ApiVersionRemoved** (Breaking by default)\n\nEvery operation of an API version is gone, and the version was not deprecated first. Clients still on it now fail. Replaces GW001, GW023 and GW043 for those operations.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW061",
+              "name": "DeprecatedApiVersionRemoved",
+              "shortDescription": {
+                "text": "DeprecatedApiVersionRemoved"
+              },
+              "fullDescription": {
+                "text": "A deprecated API version was removed. This is the planned path, but clients that ignored the deprecation still fail. Replaces GW001, GW023 and GW043 for those operations."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A deprecated API version was removed. This is the planned path, but clients that ignored the deprecation still fail. Replaces GW001, GW023 and GW043 for those operations. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW061 DeprecatedApiVersionRemoved** (Warning by default)\n\nA deprecated API version was removed. This is the planned path, but clients that ignored the deprecation still fail. Replaces GW001, GW023 and GW043 for those operations.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW062",
+              "name": "ApiVersionAdded",
+              "shortDescription": {
+                "text": "ApiVersionAdded"
+              },
+              "fullDescription": {
+                "text": "A new API version was added; existing clients keep using theirs. Replaces GW003 for its operations."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "A new API version was added; existing clients keep using theirs. Replaces GW003 for its operations. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW062 ApiVersionAdded** (Info by default)\n\nA new API version was added; existing clients keep using theirs. Replaces GW003 for its operations.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
+            },
+            {
+              "id": "GW063",
+              "name": "ApiVersionDeprecated",
+              "shortDescription": {
+                "text": "ApiVersionDeprecated"
+              },
+              "fullDescription": {
+                "text": "Every operation of an API version is now deprecated. Replaces GW002 for those operations."
+              },
+              "helpUri": "https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+              "help": {
+                "text": "Every operation of an API version is now deprecated. Replaces GW002 for those operations. See https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md",
+                "markdown": "**GW063 ApiVersionDeprecated** (Info by default)\n\nEvery operation of an API version is now deprecated. Replaces GW002 for those operations.\n\n[All GapWatch rules](https://github.com/Quattordici/GapWatch/blob/main/docs/rules.md)"
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "tags": [
+                  "api-compatibility"
+                ]
+              }
             }
           ]
         }

@@ -34,3 +34,7 @@ Severity: **Breaking** breaks correct existing consumers, **Warning** can break 
 | GW050 | Breaking | SecurityAdded | An operation that allowed anonymous access now requires authentication. |
 | GW051 | Warning | SecurityRequirementRemoved | A previously accepted security alternative (scheme or scope set) is no longer accepted. |
 | GW052 | Breaking | SecurityRequirementsReplaced | None of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate. |
+| GW060 | Breaking | ApiVersionRemoved | Every operation of an API version is gone, and the version was not deprecated first. Clients still on it now fail. Replaces GW001, GW023 and GW043 for those operations. |
+| GW061 | Warning | DeprecatedApiVersionRemoved | A deprecated API version was removed. This is the planned path, but clients that ignored the deprecation still fail. Replaces GW001, GW023 and GW043 for those operations. |
+| GW062 | Info | ApiVersionAdded | A new API version was added; existing clients keep using theirs. Replaces GW003 for its operations. |
+| GW063 | Info | ApiVersionDeprecated | Every operation of an API version is now deprecated. Replaces GW002 for those operations. |

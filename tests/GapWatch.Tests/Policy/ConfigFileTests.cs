@@ -99,4 +99,32 @@ public sealed class ConfigFileTests
         Should.Throw<ConfigurationException>(() => ConfigFile.Load("/definitely/not/gapwatch.json"))
             .Message.ShouldContain("Configuration file not found");
     }
+
+    [Test]
+    public void Versioning_defaults_to_asp_versioning_and_can_be_customized_or_turned_off()
+    {
+        var defaults = ConfigFile.ParseConfiguration("{}", "gapwatch.json").Versioning;
+        defaults.PathSegment!.ToString().ShouldBe(GapWatch.Core.Comparison.VersioningOptions.DefaultPathSegment);
+        string.Join(",", defaults.Parameters).ShouldBe("api-version");
+        defaults.MediaTypeParameter.ShouldBe("v");
+
+        var custom = ConfigFile.ParseConfiguration(
+            """{ "versioning": { "pathSegment": "^\\d{4}-\\d{2}-\\d{2}$", "parameters": ["x-api-version", "api-version"], "mediaTypeParameter": null } }""",
+            "gapwatch.json").Versioning;
+        custom.PathSegment!.IsMatch("2026-01-01").ShouldBeTrue();
+        string.Join(",", custom.Parameters).ShouldBe("x-api-version,api-version");
+        custom.MediaTypeParameter.ShouldBeNull();
+        custom.Enabled.ShouldBeTrue();
+
+        ConfigFile.ParseConfiguration("""{ "versioning": false }""", "gapwatch.json").Versioning.Enabled.ShouldBeFalse();
+    }
+
+    [Test]
+    public void Invalid_versioning_settings_are_errors()
+    {
+        ErrorFor("""{ "versioning": { "pathSegment": "(" } }""").ShouldContain("$.versioning.pathSegment is not a valid regular expression");
+        ErrorFor("""{ "versioning": { "header": "x" } }""").ShouldContain("unknown property '$.versioning.header'");
+        ErrorFor("""{ "versioning": { "parameters": "api-version" } }""").ShouldContain("$.versioning.parameters must be an array");
+        ErrorFor("""{ "versioning": true }""").ShouldContain("$.versioning must be an object");
+    }
 }

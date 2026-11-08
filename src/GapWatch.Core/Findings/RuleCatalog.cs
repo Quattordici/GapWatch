@@ -100,6 +100,20 @@ public static class RuleCatalog
     public static readonly RuleDescriptor SecurityRequirementsReplaced = new("GW052", nameof(SecurityRequirementsReplaced), Severity.Breaking,
         "None of the previously accepted security alternatives is accepted any more, so existing callers can no longer authenticate.");
 
+    // --- API versions (request side: the version is something the client sends) --------------------------------
+
+    public static readonly RuleDescriptor ApiVersionRemoved = new("GW060", nameof(ApiVersionRemoved), Severity.Breaking,
+        "Every operation of an API version is gone, and the version was not deprecated first. Clients still on it now fail. Replaces GW001, GW023 and GW043 for those operations.");
+
+    public static readonly RuleDescriptor DeprecatedApiVersionRemoved = new("GW061", nameof(DeprecatedApiVersionRemoved), Severity.Warning,
+        "A deprecated API version was removed. This is the planned path, but clients that ignored the deprecation still fail. Replaces GW001, GW023 and GW043 for those operations.");
+
+    public static readonly RuleDescriptor ApiVersionAdded = new("GW062", nameof(ApiVersionAdded), Severity.Info,
+        "A new API version was added; existing clients keep using theirs. Replaces GW003 for its operations.");
+
+    public static readonly RuleDescriptor ApiVersionDeprecated = new("GW063", nameof(ApiVersionDeprecated), Severity.Info,
+        "Every operation of an API version is now deprecated. Replaces GW002 for those operations.");
+
     /// <summary>All rules, ordered by id.</summary>
     public static IReadOnlyList<RuleDescriptor> All { get; } =
         typeof(RuleCatalog)

@@ -37,6 +37,7 @@ public sealed class CodeMapTests
         map.Locate(At("POST /pets")).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 17, 42));
         map.Locate(At("GET /pets/{petId}")).ShouldBe(new CodeLocation(File("Program.cs"), 11, 6));
         map.Locate(At("GET /unknown")).ShouldBeNull();
+        map.Locate(At("POST /pets [2.0]")).ShouldBe(new CodeLocation(File("Controllers/PetsController.cs"), 17, 42));
     }
 
     [Test]

@@ -33,14 +33,26 @@ public sealed record OperationContract(
     /// <summary>Where the operation is declared in the source document, when the reader tracks positions.</summary>
     public SourcePosition? Position { get; init; }
 
-    /// <summary>Human-readable identity, e.g. <c>GET /pets/{id}</c>.</summary>
-    public string Display => $"{Method} {Path}";
+    /// <summary>
+    /// The API version of the document the operation was read from, when one document per version is compared
+    /// (multi-document mode). It is part of the identity, so <c>GET /pets</c> in version 1 and in version 2 are
+    /// different operations. Null for a single document.
+    /// </summary>
+    public string? ApiVersion { get; init; }
+
+    /// <summary>The document the operation was read from, in multi-document mode. Null for a single document.</summary>
+    public string? Document { get; init; }
+
+    /// <summary>Human-readable identity, e.g. <c>GET /pets/{id}</c>, or <c>GET /pets/{id} [2.0]</c> with an <see cref="ApiVersion"/>.</summary>
+    public string Display => ApiVersion is null ? $"{Method} {Path}" : $"{Method} {Path} [{ApiVersion}]";
 
     /// <summary>
     /// Identity used to pair operations across versions. Path parameter names are erased so that
     /// renaming <c>{id}</c> to <c>{petId}</c> is not reported as a removal.
     /// </summary>
-    public string Key => $"{Method} {PathTemplate.Normalize(Path)}";
+    public string Key => ApiVersion is null
+        ? $"{Method} {PathTemplate.Normalize(Path)}"
+        : $"{Method} {PathTemplate.Normalize(Path)} [{ApiVersion}]";
 }
 
 /// <summary>A single declared parameter.</summary>

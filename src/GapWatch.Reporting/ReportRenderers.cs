@@ -58,14 +58,16 @@ public sealed class ConsoleReportRenderer : IReportRenderer
                 var finding = change.First;
                 if (change.IsShared)
                 {
-                    // One change in a shared component schema, seen through every operation that uses it.
-                    text.Append("  [").Append(finding.Rule.Id).Append("] ").Append(finding.Origin!.Display)
+                    // One change in a shared component schema or API version, seen through every operation it affects.
+                    text.Append("  [").Append(finding.Rule.Id).Append("] ").Append(finding.GroupLabel)
                         .Append(", affects ").Append(change.Members.Count).Append(" operations\n");
                     text.Append("          ").Append(finding.Message).Append('\n');
                     var width = change.Members.Max(m => m.Operation.Length);
                     foreach (var member in change.Members)
                     {
-                        text.Append("          - ").Append(member.Operation.PadRight(width)).Append("  ").Append(member.Location).Append('\n');
+                        text.Append("          - ").Append(member.Location == "operation"
+                            ? member.Operation
+                            : $"{member.Operation.PadRight(width)}  {member.Location}").Append('\n');
                     }
 
                     AppendPosition(text, finding, context);
@@ -120,7 +122,7 @@ public sealed class ConsoleReportRenderer : IReportRenderer
     {
         if (finding.Position is { } position)
         {
-            text.Append("          at ").Append(context.HeadLabel).Append(':').Append(position).Append('\n');
+            text.Append("          at ").Append(finding.Document ?? context.HeadLabel).Append(':').Append(position).Append('\n');
         }
 
         if (finding.Code is { } code)
@@ -233,12 +235,19 @@ public sealed class MarkdownReportRenderer : IReportRenderer
             if (change.IsShared)
             {
                 // One row per change: the component path is the cause, the operations are where consumers see it.
-                var origin = finding.Origin!;
                 text.Append("| ").Append(finding.Rule.Id)
-                    .Append(" | ").Append(string.Join("<br>", change.Members.Select(m => $"`{Code(m.Operation)}`")))
-                    .Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
-                    .Append("` (").Append(origin.Direction.ToString().ToLowerInvariant()).Append(", ")
-                    .Append(change.Members.Count).Append(" operations)").Append(Line(finding))
+                    .Append(" | ").Append(string.Join("<br>", change.Members.Select(m => $"`{Code(m.Operation)}`")));
+                if (finding.Origin is { } origin)
+                {
+                    text.Append(" | schema `").Append(Code(origin.Component)).Append("` `").Append(Code(origin.Path))
+                        .Append("` (").Append(origin.Direction.ToString().ToLowerInvariant()).Append(", ");
+                }
+                else
+                {
+                    text.Append(" | API version `").Append(Code(finding.ApiVersion!)).Append("` (");
+                }
+
+                text.Append(change.Members.Count).Append(" operations)").Append(Line(finding))
                     .Append(" | ").Append(Cell(finding.Message))
                     .Append(" |\n");
                 continue;

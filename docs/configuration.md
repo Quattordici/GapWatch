@@ -26,7 +26,14 @@ The file is optional; without it every rule reports with its default severity. G
       "location": "response 200 application/json: $[].nickname",
       "justification": "Never populated in production; removal agreed with all consumers (ADR-12)."
     }
-  ]
+  ],
+
+  // How API versions are recognized (the defaults shown match Asp.Versioning). Or "versioning": false.
+  "versioning": {
+    "pathSegment": "^v\\d+(\\.\\d+)?$",
+    "parameters": ["api-version"],
+    "mediaTypeParameter": "v"
+  }
 }
 ```
 
@@ -99,6 +106,20 @@ How a baseline differs from suppressions:
 | Justification | One per suppression | One per file |
 
 Baselined findings are reported like suppressed ones: they do not count towards the summary or the exit code, and they are listed with the justification. An entry that matches nothing is listed as an unused `baseline:` entry, because the change was fixed, reverted or released. Rewrite the baseline to drop it. A baseline is applied after `gapwatch.json`: overrides and disabled rules come first, and a finding suppressed in `gapwatch.json` keeps its own justification.
+
+## API versions
+
+The `versioning` section controls how GW060 to GW063 find the API version of an operation. Every key is optional, and a missing key keeps its default.
+
+| Key | Default | Meaning |
+|---|---|---|
+| `pathSegment` | `^v\d+(\.\d+)?$` | Regular expression (case-insensitive) for a path segment that is the version, e.g. `/v1/pets`. This is the default `VVV` substitution format with a `v` prefix. `null` stops looking at paths. |
+| `parameters` | `["api-version"]` | Query or header parameters (case-insensitive) whose enum lists the versions. Add your header name if you use header versioning, e.g. `"x-api-version"`. `null` or `[]` stops looking at parameters. |
+| `mediaTypeParameter` | `"v"` | Media type parameter that carries the version, e.g. `application/json;v=2.0`. `null` stops looking at media types. |
+
+`"versioning": false` turns detection off, and every change is reported with the version-unaware rules (GW001, GW002, GW003, GW023, GW043). Folder mode still labels each operation with its document's version, because that is how the documents are told apart.
+
+Severity overrides, suppressions and baselines apply to the version findings like to any other: to treat retiring a deprecated version as expected, set `"GW061": "info"` and keep GW060 Breaking.
 
 ## Not supported yet
 

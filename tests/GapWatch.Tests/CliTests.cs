@@ -278,6 +278,51 @@ public sealed class CliTests
         Regex.IsMatch(Run("--version").Out.Trim(), @"^\d+\.\d+\.\d+").ShouldBeTrue();
     }
 
+    [Test]
+    public void Compare_of_two_folders_pairs_documents_by_version_and_reports_a_removed_version()
+    {
+        using var dir = new TempDir();
+        static string Doc(string version, string path) =>
+            TestSpec.Operation("get", path).Replace("\"version\": \"1\"", $"\"version\": \"{version}\"", StringComparison.Ordinal);
+        Directory.CreateDirectory(Path.Join(dir.Path, "base"));
+        Directory.CreateDirectory(Path.Join(dir.Path, "head"));
+        dir.Write("base/v1.json", Doc("1.0", "/pets"));
+        dir.Write("base/v2.json", Doc("2.0", "/pets"));
+        dir.Write("head/v2.json", Doc("2.0", "/pets"));
+        dir.Write("head/v3.yaml", "openapi: 3.0.3\ninfo: { title: t, version: '3.0' }\npaths:\n  /pets:\n    get:\n      responses:\n        '204': { description: d }\n");
+
+        var (code, output, _) = Run("compare", Path.Join(dir.Path, "base"), Path.Join(dir.Path, "head"));
+
+        code.ShouldBe(ExitCodes.FindingsAtThreshold);
+        output.ShouldContain("[GW060] GET /pets [1.0]\n");
+        output.ShouldContain("[GW062] GET /pets [3.0]\n");
+        output.ShouldContain("at " + Path.Join(dir.Path, "head").Replace('\\', '/') + "/v3.yaml:5:5\n");
+        output.ShouldNotContain("GW001");
+    }
+
+    [Test]
+    public void Compare_of_a_folder_with_a_file_is_a_usage_error()
+    {
+        using var dir = new TempDir();
+
+        var (code, _, error) = Run("compare", dir.Path, V1);
+
+        code.ShouldBe(ExitCodes.Error);
+        error.ShouldContain("two folders");
+    }
+
+    [Test]
+    public void Versioning_false_in_the_config_reports_operation_rules()
+    {
+        using var dir = new TempDir();
+        var before = dir.Write("before.json", TestSpec.Document("""{ "/v1/pets": { "get": { "responses": { "204": { "description": "d" } } } }, "/v2/pets": { "get": { "responses": { "204": { "description": "d" } } } } }"""));
+        var after = dir.Write("after.json", TestSpec.Operation("get", "/v2/pets"));
+        var config = dir.Write("gapwatch.json", """{ "versioning": false }""");
+
+        Run("compare", before, after).Out.ShouldContain("[GW060]");
+        Run("compare", before, after, "--config", config).Out.ShouldContain("[GW001]");
+    }
+
     private sealed class TempDir : IDisposable
     {
         public TempDir()

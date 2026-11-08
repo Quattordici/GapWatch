@@ -221,7 +221,7 @@ public sealed class SarifReportRenderer : IReportRenderer
         }
         else
         {
-            WritePhysicalLocation(json, ArtifactUri(context.HeadLabel), artifactIndex: 1, specRegion.Line, specRegion.Column);
+            WriteSpecLocation(json, finding, context, specRegion);
         }
 
         json.WriteStartArray("logicalLocations");
@@ -239,7 +239,7 @@ public sealed class SarifReportRenderer : IReportRenderer
             json.WriteStartArray("relatedLocations");
             json.WriteStartObject();
             json.WriteNumber("id", 1);
-            WritePhysicalLocation(json, ArtifactUri(context.HeadLabel), artifactIndex: 1, specRegion.Line, specRegion.Column);
+            WriteSpecLocation(json, finding, context, specRegion);
             WriteText(json, "message", "Where the change is in the OpenAPI document.");
             json.WriteEndObject();
             json.WriteEndArray();
@@ -270,9 +270,30 @@ public sealed class SarifReportRenderer : IReportRenderer
             json.WriteString("componentPath", origin.Path);
         }
 
+        if (finding.ApiVersion is { } apiVersion)
+        {
+            json.WriteString("apiVersion", apiVersion);
+        }
+
         json.WriteEndObject();
 
         json.WriteEndObject();
+    }
+
+    /// <summary>
+    /// The place in the head OpenAPI document: the single head document (artifact 1), or in multi-document mode the
+    /// version document the operation is in, which is not one of the listed artifacts.
+    /// </summary>
+    private static void WriteSpecLocation(Utf8JsonWriter json, Finding finding, ReportContext context, SourcePosition region)
+    {
+        if (finding.Document is { } document)
+        {
+            WritePhysicalLocation(json, ArtifactUri(document), artifactIndex: null, region.Line, region.Column);
+        }
+        else
+        {
+            WritePhysicalLocation(json, ArtifactUri(context.HeadLabel), artifactIndex: 1, region.Line, region.Column);
+        }
     }
 
     /// <summary>

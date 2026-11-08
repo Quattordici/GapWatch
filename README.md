@@ -36,7 +36,7 @@ gapwatch rules [--format console|markdown]
 gapwatch --version | --help
 ```
 
-- `<base>` is the contract consumers rely on today; `<head>` is the proposed change.
+- `<base>` is the contract consumers rely on today; `<head>` is the proposed change. With one OpenAPI document per API version (the usual `Asp.Versioning` setup), pass two folders instead of two files; see [API versions](#api-versions).
 - `--format markdown` produces a report for pull request comments. It starts with a hidden marker (`<!-- gapwatch-report -->`) so a pipeline can find and update one comment instead of posting a new one each run.
 - `--format sarif` writes a SARIF 2.1.0 log for code-scanning views (GitHub code scanning, the Azure DevOps SARIF viewer, IDE SARIF viewers). See [Output formats](#output-formats).
 - `--format junit` writes JUnit XML for CI test tabs (Azure DevOps, Jenkins, GitLab).
@@ -138,7 +138,22 @@ Every suppression needs a justification. Suppressed findings leave the exit code
 
 ## Rules
 
-28 rules across operations, parameters, schemas, bodies, responses and security. See [docs/rules.md](docs/rules.md), or run `gapwatch rules`. Rule ids are stable: they never change meaning and are never reused.
+32 rules across operations, parameters, schemas, bodies, responses, security and API versions. See [docs/rules.md](docs/rules.md), or run `gapwatch rules`. Rule ids are stable: they never change meaning and are never reused.
+
+### API versions
+
+GapWatch recognizes `Asp.Versioning` setups and reports a version as one decision instead of one finding per endpoint. A version is read from the document it is in (folder mode), a path segment such as `/v1/pets`, the enum of an `api-version` query or header parameter, or the `v` media type parameter (`application/json;v=2.0`). `v1`, `1` and `1.0` are the same version.
+
+| Rule | Severity | Replaces, for those operations |
+|---|---|---|
+| GW060 ApiVersionRemoved | Breaking | GW001, GW023, GW043 |
+| GW061 DeprecatedApiVersionRemoved | Warning | GW001, GW023, GW043 |
+| GW062 ApiVersionAdded | Info | GW003 |
+| GW063 ApiVersionDeprecated | Info | GW002 |
+
+A version is removed only when no operation in the head has it any more; removing one endpoint of a version that stays is still GW001. It counts as deprecated when every operation of the version is marked `deprecated`, so GW061 means it was retired on the planned path. One finding is still reported per operation, so counts and exit codes stay per operation, and reports group them under the version.
+
+**Folder mode.** `gapwatch compare base/ head/` reads every `.json`, `.yaml` and `.yml` file in each folder (not recursive) and pairs the documents by `info.version`, or by file name when an `info.version` is missing or repeated. Operations are shown with their version, for example `GET /pets [2.0]`, and a document on one side only is a removed or added version. The detection patterns can be changed or turned off in `gapwatch.json` (see [Configuration](docs/configuration.md#api-versions)).
 
 ### How direction changes the verdict
 
@@ -180,7 +195,8 @@ To regenerate the golden reports after an intentional output change, run the tes
 - **YAML 1.2 only.** YAML documents are read with YAML 1.2 core-schema typing, as OpenAPI requires. Unquoted `yes`/`no`/`on`/`off` are strings, not booleans (YAML 1.1 tools disagree here). Merge keys (`<<`) and multi-document files are rejected. Write `openapi: 3.1.0`, not `openapi: 3.1`, because an unquoted `3.1` is a number.
 - **Local references only.** External `$ref`s are rejected with a clear message; bundle the document first. Swagger 2.0 is not supported.
 - **No value constraints yet.** `minLength`, `maxLength`, `pattern`, `minimum`, `maximum`, `additionalProperties` and `discriminator` are not compared.
-- **Two files in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
+- **Two files or two folders in, no git refs.** Obtaining the base spec from a commit or branch is not built yet.
+- **API versions from the spec only.** `[ApiVersion]` and `[MapToApiVersion]` attributes are not read through `--source`. A removed version has no place in the head, so its SARIF result points at the head folder.
 - **Explicit configuration only.** `gapwatch.json` must be passed with `--config`; it is not discovered automatically.
 - **Code mapping is best effort.** See [Mapping findings to C# code](#mapping-findings-to-c-code) for what is not matched.
 
@@ -191,7 +207,7 @@ To regenerate the golden reports after an intentional output change, run the tes
 | v0.1 | OpenAPI JSON diff, 28 rules, console and Markdown reports (this release) |
 | v0.2 | `gapwatch.json` severity overrides and suppressions that require a justification (done), SARIF and JUnit output (done), grouping of repeated findings (done), YAML input (done), Azure DevOps and GitHub integration docs (done) |
 | v0.3 | Findings mapped to source locations: line and column in the OpenAPI document (done), Roslyn mapping of operations, parameters and schemas to controllers, minimal API endpoints and DTOs (done) |
-| v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules |
+| v0.4 | Baseline files for adopting on legacy APIs (done), `Asp.Versioning`-aware rules and folder mode (done) |
 | v1.0 | Stable rule ids and a compatibility policy for the tool itself, custom rule plugins |
 
 ## License
